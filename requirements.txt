@@ -1,0 +1,48 @@
+# ── Parroty core (everything the app needs to run) ───────────────────────
+Flask==3.0.3
+
+# EPUB parsing
+ebooklib==0.18
+beautifulsoup4==4.12.3
+lxml==5.2.2
+
+# Audio handling
+pydub==0.25.1
+
+# Memory-pressure monitoring (lets narration release RAM before it runs out).
+# Optional — the app falls back to a Windows API call if this isn't installed.
+psutil==6.0.0
+
+# Multi-format document parsing (PDF, Word .docx). EPUB uses ebooklib above.
+pdfplumber==0.11.4
+python-docx==1.1.2
+
+# Cover image handling for the MP4 (converts any format ffmpeg can't read,
+# e.g. AVIF/WebP, into a clean JPEG)
+Pillow==10.4.0
+pillow-avif-plugin==1.4.6
+
+# Cloud TTS clients (used only if you pick OpenAI or ElevenLabs)
+openai==1.40.0
+elevenlabs==1.7.0
+
+# ── Local voice engine: Chatterbox (optional) ────────────────────────────
+# Chatterbox is free + local and does voice cloning. It is NOT installed by
+# the line above because it pulls in PyTorch, which needs a platform-specific
+# install. If you want Chatterbox, install these two THINGS in this order:
+#
+#   1) PyTorch  — GPU (CUDA 12.8) build, needed for NVIDIA GPUs incl. RTX
+#                 50-series. Works on CPU-only machines too:
+#                 pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+#      (No NVIDIA GPU and want a smaller download? Use the plain CPU build:
+#                 pip install torch torchaudio )
+#      Latest/most current command: https://pytorch.org/get-started/locally/
+#
+#   2) Chatterbox:
+#                 pip install chatterbox-tts
+#
+# ── ffmpeg (required for combining audio + MP4 video) ────────────────────
+# Not a pip package. Install on the system:
+#   Windows: winget install ffmpeg   (then restart the terminal)
+#   macOS:   brew install ffmpeg
+#   Ubuntu:  sudo apt install ffmpeg

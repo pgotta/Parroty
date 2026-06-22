@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parroty — EPUB to Audiobook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Spline+Sans+Mono:wght@400;500;600&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="masthead">
+  <div class="brand">
+    <svg class="parrot-mark" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-label="Parrot reading a book">
+      <!-- open book -->
+      <path d="M8 60 L40 54 L40 72 L8 68 Z" fill="var(--paper-deep)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M72 60 L40 54 L40 72 L72 68 Z" fill="var(--paper-deep)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+      <line x1="40" y1="54" x2="40" y2="72" stroke="var(--ink)" stroke-width="1.6"/>
+      <line x1="14" y1="60" x2="35" y2="56.2" stroke="var(--rule)" stroke-width="1.2"/>
+      <line x1="14" y1="63.5" x2="35" y2="59.7" stroke="var(--rule)" stroke-width="1.2"/>
+      <line x1="45" y1="56.2" x2="66" y2="60" stroke="var(--rule)" stroke-width="1.2"/>
+      <line x1="45" y1="59.7" x2="66" y2="63.5" stroke="var(--rule)" stroke-width="1.2"/>
+      <!-- tail -->
+      <path d="M55 30 Q72 34 70 50 Q64 44 56 42 Z" fill="var(--gilt)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+      <!-- body -->
+      <path d="M30 28 Q24 44 34 52 Q46 56 54 46 Q60 36 52 26 Q44 18 30 28 Z" fill="var(--spine)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+      <!-- wing -->
+      <path d="M38 32 Q48 34 50 46 Q42 48 36 42 Q34 36 38 32 Z" fill="var(--spine-deep)" stroke="var(--ink)" stroke-width="1.2" stroke-linejoin="round"/>
+      <!-- head -->
+      <circle cx="34" cy="24" r="13" fill="var(--spine)" stroke="var(--ink)" stroke-width="1.6"/>
+      <!-- face patch -->
+      <circle cx="31" cy="25" r="7.5" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/>
+      <!-- eye -->
+      <circle cx="33" cy="22" r="2.6" fill="var(--ink)"/>
+      <circle cx="33.9" cy="21.2" r="0.8" fill="var(--paper)"/>
+      <!-- beak (hooked) -->
+      <path d="M22 24 Q12 25 18 31 Q22 31 24 28 Q26 30 28 28 Q27 23 22 24 Z" fill="var(--gilt)" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>
+      <!-- head crest -->
+      <path d="M40 13 Q44 6 47 12 Q44 12 43 16 Z" fill="var(--gilt)" stroke="var(--ink)" stroke-width="1.2" stroke-linejoin="round"/>
+    </svg>
+    <h1>Parrot<span class="whimsy-y">y</span></h1>
+  </div>
+  <p class="tagline">An ebook goes in. A narrated, chaptered audiobook comes out.</p>
+  {% if not ffmpeg_ok %}
+  <div class="warn">ffmpeg not detected — audio combining works, but MP4 video export will be unavailable until you install it.</div>
+  {% endif %}
+</header>
+
+<main>
+  <!-- STEP 1 — UPLOAD -->
+  <section class="step" id="step-upload" data-step="1">
+    <div class="step-head">
+      <span class="num">i</span>
+      <h2>Bring your book</h2>
+    </div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="epubInput" accept=".epub,.txt,.text,.md,.markdown,.pdf,.doc,.docx,.rtf,.htm,.html" hidden>
+      <p class="drop-main">Drop a <strong>book or document</strong> here</p>
+      <p class="drop-sub">EPUB, PDF, Word (.docx), .txt, Markdown, HTML — or click to browse</p>
+    </div>
+    <div id="bookMeta" class="book-meta hidden"></div>
+
+    <!-- Restore a previous session (shown only if recoverable runs exist) -->
+    <div id="restorePanel" class="restore-panel hidden">
+      <button type="button" class="restore-toggle" id="restoreToggle">
+        <span class="cb-caret">▸</span> Restore a previous session
+      </button>
+      <div class="restore-body hidden" id="restoreBody">
+        <p class="hint">Earlier narration runs found on disk. You can resume one that stopped partway (it skips chapters already done), or bind a finished run into the audiobook/MP4 — no re-narrating from scratch.</p>
+        <p class="hint recovery-loc" id="restoreLocation"></p>
+        <div class="field">
+          <label>Previous runs <span class="muted">(newest first)</span></label>
+          <select id="restoreJob"></select>
+        </div>
+        <p class="hint" id="restoreStatusNote"></p>
+        <label class="check" title="After every N chapters, Parroty pauses, fully shuts down and restarts the narration process — which makes Windows hand back ALL the RAM and page-file memory it was using — then automatically continues from the exact chapter it left on. This keeps memory flat for the rest of the book, so even long books finish without 'out of memory' or 'bad allocation' errors on machines with limited RAM.">
+          <input type="checkbox" id="restoreLowMem" checked> Low-memory mode
+        </label>
+        <div class="muted" id="restoreLowMemDetail" style="margin:4px 0 0 24px; font-size:0.9em">
+          Flush RAM &amp; page file every
+          <input type="number" id="restoreRecycleBatch" min="1" max="500" value="10"
+                 style="width:3.4em; padding:2px 4px"
+                 title="How many chapters to narrate before fully restarting the process to flush memory. Lower this (e.g. 5 or even 1) if you have a small Windows page file or hit 'bad allocation' / out-of-memory errors; raise it for fewer restarts if you have RAM to spare. 10 is a safe default for 16 GB machines.">
+          chapters, then continue — lower it if you have a small page file.
+        </div>
+        <label class="check">
+          <input type="checkbox" id="restoreMakeVideo"> Also build an MP4 (image + audio) for YouTube
+        </label>
+        <div class="field hidden" id="restoreCoverField">
+          <label>Cover image <span class="muted">(uses cover.* already in the folder if present, or upload one)</span></label>
+          <input type="file" id="restoreCoverInput" accept="image/*">
+          <p class="muted" id="restoreCoverNote"></p>
+        </div>
+        <div class="restore-actions">
+          <button type="button" class="primary" id="restoreResumeBtn">Resume narrating</button>
+          <button type="button" class="ghost" id="restoreBindBtn">Just bind what's done</button>
+          <button type="button" class="ghost" id="chooseChaptersBtn">Choose chapters to include…</button>
+        </div>
+        <div id="chapterSelect" class="chapter-select hidden"></div>
+        <div id="restoreProgress" class="progress hidden"></div>
+        <div id="restoreResults" class="results hidden"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2 — CHAPTERS -->
+  <section class="step hidden" id="step-chapters" data-step="2">
+    <div class="step-head">
+      <span class="num">ii</span>
+      <h2>Shape the chapters</h2>
+    </div>
+    <p class="hint">Auto-detected from the book's structure. Rename or delete any chapter before narration.</p>
+    <div id="chapterList" class="chapter-list"></div>
+    <div class="row">
+      <button class="ghost" id="addChapterBtn">+ Add empty chapter</button>
+      <button class="primary" id="saveChaptersBtn">Save chapters</button>
+    </div>
+  </section>
+
+  <!-- STEP 3 — VOICE -->
+  <section class="step hidden" id="step-voice" data-step="3">
+    <div class="step-head">
+      <span class="num">iii</span>
+      <h2>Choose the voice</h2>
+    </div>
+    <div class="engine-grid" id="engineGrid"></div>
+
+    <div class="voice-config hidden" id="voiceConfig">
+      <div class="field hidden" id="voiceField">
+        <label>Voice</label>
+        <select id="voiceSelect"></select>
+      </div>
+
+      <!-- Chatterbox built-in voice picker (free, no sample needed) -->
+      <div class="field hidden" id="builtinField">
+        <label>Built-in voice <span class="muted">(free — no sample, no key needed)</span></label>
+        <select id="builtinSelect"></select>
+        <p class="muted" id="builtinNote">Bundled male/female voices that run fully offline. Click Preview below to hear them. Or upload your own sample to clone a different voice.</p>
+      </div>
+
+      <div class="field hidden" id="keyField">
+        <label>API key <span class="muted">(stays on your machine, sent only to the provider)</span></label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+        <a class="keylink" id="keyLink" target="_blank" rel="noopener">Get a key →</a>
+      </div>
+
+      <div class="field hidden" id="cloneField">
+        <label>Your own voice sample <span class="muted">(optional — overrides built-in; 6–30s clean .wav/.mp3)</span></label>
+        <input type="file" id="sampleInput" accept=".wav,.mp3">
+        <div id="sampleStatus" class="sample-status hidden">
+          <span id="sampleStatusText">✓ Using your uploaded sample.</span>
+          <button type="button" class="ghost sample-remove" id="sampleRemove">Remove &amp; use built-in</button>
+        </div>
+        <p class="consent">Only clone a voice you own or have explicit permission to use.</p>
+      </div>
+
+      <!-- Model variant: speed vs quality (Chatterbox only) -->
+      <div class="field hidden" id="modelField">
+        <label>Speed vs quality <span class="muted">(Chatterbox model)</span></label>
+        <select id="modelSelect"></select>
+        <p class="muted" id="modelNote">Turbo is dramatically faster and great for long narration; Standard has the most expressive controls. Default is Standard.</p>
+      </div>
+
+      <!-- Compute device (Chatterbox only) -->
+      <div class="field hidden" id="deviceField">
+        <label>Compute device <span class="muted">(Chatterbox)</span></label>
+        <select id="deviceSelect"></select>
+        <p class="device-caveat" id="deviceCaveat">⚡ A GPU is strongly preferred — Chatterbox runs many times faster on an NVIDIA (CUDA) or Apple (Metal) GPU. On CPU only it works but is <strong>extremely slow</strong> (often several minutes per few seconds of audio). Integrated Intel/AMD graphics can't be used and will fall back to CPU.</p>
+      </div>
+
+      <!-- Collapsible Chatterbox tuning panel -->
+      <div class="cb-panel hidden" id="cbPanel">
+        <button type="button" class="cb-toggle" id="cbToggle">
+          <span class="cb-caret">▸</span> Chatterbox options
+        </button>
+        <div class="cb-body hidden" id="cbBody"></div>
+      </div>
+
+      <!-- Hear a sample before committing to the whole book -->
+      <div class="field" id="previewField">
+        <button type="button" class="ghost preview-btn" id="previewBtn">▶ Preview voice</button>
+        <span class="muted" id="previewNote">Hear a short sample with the current voice and settings.</span>
+        <div id="previewBar" class="pbar hidden"><div class="pbar-fill" id="previewFill"></div><span class="pbar-label" id="previewLabel"></span></div>
+        <audio id="previewAudio" controls class="hidden preview-audio"></audio>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4 — NARRATE -->
+  <section class="step hidden" id="step-narrate" data-step="4">
+    <div class="step-head">
+      <span class="num">iv</span>
+      <h2>Narrate &amp; bind</h2>
+    </div>
+    <p class="hint">Set everything here, then start once and leave it — it narrates every chapter, then (if you choose) combines them into one audiobook and builds the YouTube video, all in a single run.</p>
+
+    <div class="bind-setup">
+      <label class="check">
+        <input type="checkbox" id="bindCombine" checked> Combine all chapters into one audiobook file when done
+      </label>
+      <label class="check">
+        <input type="checkbox" id="makeVideo"> Also build an MP4 (static image + audio) for YouTube
+      </label>
+      <div class="field hidden" id="coverField">
+        <label>Cover image <span class="muted">(JPG/PNG recommended)</span></label>
+        <input type="file" id="coverInput" accept="image/*">
+        <p class="muted" id="coverNote"></p>
+      </div>
+      <label class="check" title="After every N chapters, Parroty pauses, fully shuts down and restarts the narration process — which makes Windows hand back ALL the RAM and page-file memory it was using — then automatically continues from the exact chapter it left on. This keeps memory flat for the whole book, so even very long books finish without 'out of memory' or 'bad allocation' errors on machines with limited RAM. Smaller N = steadier memory; larger N = fewer restarts.">
+        <input type="checkbox" id="lowMem" checked> Low-memory mode
+      </label>
+      <div class="muted" id="lowMemDetail" style="margin:4px 0 0 24px; font-size:0.9em">
+        Flush RAM &amp; page file every
+        <input type="number" id="recycleBatch" min="1" max="500" value="10"
+               style="width:3.4em; padding:2px 4px"
+               title="How many chapters to narrate before fully restarting the process to flush memory. 10 is a safe default for 16 GB machines.">
+        chapters, then continue — keeps memory flat so long books finish cleanly.
+      </div>
+    </div>
+
+    <div class="narrate-actions">
+      <button class="ghost" id="estimateBtn">⏱ Estimate time</button>
+      <span class="muted" id="estimateNote"></span>
+    </div>
+    <button class="primary big" id="narrateBtn">Narrate &amp; bind</button>
+    <div id="narrateBar" class="pbar pbar-lg hidden"><div class="pbar-fill" id="narrateFill"></div><span class="pbar-label" id="narrateLabel"></span></div>
+    <div id="narrateProgress" class="progress hidden"></div>
+    <div id="results" class="results hidden"></div>
+
+    <div class="recovery">
+      <button type="button" class="recovery-toggle" id="recoveryToggle">
+        <span class="cb-caret">▸</span> Already narrated? Bind existing chapter files
+      </button>
+      <div class="recovery-body hidden" id="recoveryBody">
+        <p class="hint">If narration already finished (even in a previous session) but binding failed or was skipped, this combines the chapter files already on disk — no re-narrating. It uses the combine / MP4 / cover options selected above.</p>
+        <p class="hint recovery-loc" id="recoverLocation"></p>
+        <div class="field">
+          <label>Which run to bind <span class="muted">(newest first)</span></label>
+          <select id="recoverJob"></select>
+        </div>
+        <button type="button" class="primary" id="recoverBtn">Bind existing files</button>
+        <div id="recoverProgress" class="progress hidden"></div>
+        <div id="recoverResults" class="results hidden"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>Runs entirely on your machine. Cloud engines send text to your chosen provider; local engines send nothing.</p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

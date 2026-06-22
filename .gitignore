@@ -1,0 +1,32 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---- Virtual environments (do NOT upload these — they're huge and machine-specific) ----
+venv/
+.venv/
+env/
+ENV/
+
+# ---- Parroty runtime data ----
+# Your uploaded books and all generated audio/video/state. Keep these out of the
+# repo (the folders themselves are kept via .gitkeep so the app still works).
+output/*
+!output/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+# ---- Model weights / caches (in case any ever land in the project folder) ----
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
