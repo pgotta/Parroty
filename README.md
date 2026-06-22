@@ -26,6 +26,27 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 - **Runs entirely on your own machine** — your files and (for the local engine)
   your audio never leave your computer.
 
+## Known issues
+
+**⚠️ Keep the Parroty console window in the foreground while narrating, or the
+GPU slows down.** When the Parroty window (the PowerShell/console window opened by
+`run.bat`) loses focus or is minimized, Windows throttles the process and GPU
+utilization drops sharply — often to around 10%. Bringing the window back to the
+foreground immediately restores full speed.
+
+Parroty already tries to opt itself **and its narration workers** out of
+Windows' background power throttling (EcoQoS), raise its priority, and keep the
+system awake — but on some machines, **especially laptops**, that isn't enough to
+fully prevent the slowdown. This is a known bug we're still working on.
+
+**Workaround for now:** while a book is narrating, keep the Parroty console
+window **visible and in the foreground** (not minimized, and not fully covered by
+another window). You can still glance at other apps, but leaving Parroty's window
+on top keeps the GPU at full speed. On a laptop, also plug in AC power and apply
+the power settings under
+[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed) below — but even
+with those, foreground focus is currently required for maximum throughput.
+
 ## Screenshots
 
 <p align="center">
@@ -411,17 +432,21 @@ the list (shown by book title and date), and bind it without re-narrating.
 Cover images can be any common format — JPG, PNG, WebP, even AVIF — Parroty
 converts them automatically so ffmpeg can read them.
 
-## Keeping it at full speed in the background
+## Keeping the GPU at full speed
 
 If you've seen the GPU drop to ~10% the moment the Parroty console loses focus,
 and jump back to full speed when you click it: that's Windows applying *power
-throttling* (EcoQoS) to background processes. Parroty now opts itself **and its
+throttling* (EcoQoS) to background processes. Parroty opts itself **and its
 narration workers** out of that throttling, raises its priority, and keeps the
-system awake — so it runs at full speed even when minimized. Just **minimize the
-window, don't close it** (closing stops the server).
+system awake.
+
+**Important:** as noted in [Known issues](#known-issues) above, this isn't
+always enough — on some machines (especially laptops) the GPU still slows when
+the window loses focus, so for now **keep the Parroty console window in the
+foreground while narrating**.
 
 On a **laptop** the GPU is throttled even harder by power policy, so for maximum
-speed in the background also:
+speed also:
 
 - **Plug in AC power.** On battery, Windows and the GPU throttle aggressively no
   matter what; this is the single biggest factor on a laptop.
@@ -430,8 +455,8 @@ speed in the background also:
   maximum performance"** (set it globally, or just for `python.exe`). This stops
   the GPU from down-clocking when it thinks it's idle.
 
-With AC power, those two performance settings, and Parroty's own opt-out, the GPU
-stays pinned whether the window is focused or not.
+With AC power, those performance settings, and the Parroty window kept in the
+foreground, the GPU should stay pinned.
 
 ## Memory use on 16 GB machines
 
