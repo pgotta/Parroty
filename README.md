@@ -32,10 +32,10 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 ## Known issues
 
 **⚠️ Keep the Parroty console window in the foreground while narrating, or the
-GPU slows down.** When the Parroty window (the PowerShell/console window opened by
-`run.bat`) loses focus or is minimized, Windows throttles the process and GPU
-utilization drops sharply — often to around 10%. Bringing the window back to the
-foreground immediately restores full speed.
+GPU slows down.** When the Parroty console window (the one running the app) loses
+focus or is minimized, Windows throttles the process and GPU utilization drops
+sharply — often to around 10%. Bringing the window back to the foreground
+immediately restores full speed.
 
 Parroty already tries to opt itself **and its narration workers** out of
 Windows' background power throttling (EcoQoS), raise its priority, and keep the
@@ -106,33 +106,12 @@ WARNING: Only clone voices you own or have explicit permission to use.
 
 ---
 
-## Quick start (Windows — easiest)
+## Install and run
 
 Make sure **Python 3.12** and **ffmpeg** are installed first (see steps 1–2
 below if you haven't — these are one-time, machine-wide installs).
 
-**The easiest way: just double-click two files.**
-
-1. Double-click **`setup.bat`** — run this **once**. It creates the environment
-   and installs everything (core packages + PyTorch with GPU support +
-   Chatterbox), then verifies your GPU.
-2. Double-click **`run.bat`** — run this **every time** you want to use Parroty.
-   Chrome opens automatically at `http://127.0.0.1:5000`.
-
-That's it. `run.bat` opens a console window — keep it open while narrating (for
-full GPU speed, keep it in the foreground). All output is also saved to
-`parroty.log`, so if anything ever stops unexpectedly the reason is captured
-there. To stop the server, close the window or press **Ctrl+C**.
-
-> If `setup.bat` ever leaves you on CPU (GPU shows False), double-click
-> **`fix_gpu.bat`** to reinstall the CUDA GPU build of PyTorch.
-
-The batch files also **avoid the PowerShell script-blocking issue** described
-below, since they call Python directly instead of activating the environment.
-
----
-
-### Manual command-line setup (or if you're not on Windows)
+### Setup (paste this into PowerShell)
 
 Open PowerShell **inside the Parroty folder** and paste this whole block in
 one go. It creates the environment, installs everything (core packages + PyTorch
@@ -327,16 +306,15 @@ torch torchaudio` installs a **CPU-only** build, and older CUDA builds (cu124 an
 earlier) don't support the new RTX 50-series. Parroty shows a warning under the
 Compute device selector when this happens.
 
-**Easiest fix: double-click `fix_gpu.bat`.** It force-reinstalls the CUDA GPU
-build into your existing venv and verifies it. (This is also why `setup.bat`
-installs PyTorch *last* and force-reinstalls it — so the GPU build can't be
-replaced by a CPU build pulled in as another package's dependency.)
-
-To do it manually instead, in your activated venv:
+**The fix:** in your activated venv, force-reinstall the CUDA GPU build:
 
 ```powershell
 pip install --force-reinstall --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu128
 ```
+
+(This is also why the setup installs PyTorch *last* and force-reinstalls it — so
+the GPU build can't be replaced by a CPU build pulled in as another package's
+dependency.)
 
 For a **very new GPU (e.g. RTX 50-series / Blackwell)**, CUDA 12.8 (`cu128`) is
 what you need. If it still falls back to CPU, try the nightly build:
@@ -350,17 +328,12 @@ The authoritative, always-current command is at
 After reinstalling, restart Parroty; the Compute device selector should then list
 your GPU and the warning turns into a green "GPU is available" note.
 
-> Quick check: double-click **`check_gpu.bat`** (or run
-> `python -c "import torch; print(torch.cuda.is_available())"` in your venv) to
-> see whether PyTorch can use your GPU — it prints your torch version, the CUDA
-> build, and whether the GPU is detected.
+> Quick check: run `python -c "import torch; print(torch.cuda.is_available())"`
+> in your venv to see whether PyTorch can use your GPU.
 
 ---
 
 ## Running and stopping
-
-**Easiest (Windows):** double-click **`run.bat`**. Chrome opens automatically at
-`http://127.0.0.1:5000`. To stop, close the window or press **Ctrl+C**.
 
 **From the command line** (with your venv active), from inside the `Parroty`
 folder:
@@ -386,8 +359,7 @@ source venv/bin/activate
 python -m app.server
 ```
 
-> Tips: to skip the auto-open browser, set `PARROTY_NO_BROWSER=1` before running.
-> On Windows, `run.bat` does all of the above with a double-click.
+> Tip: to skip the auto-open browser, set `PARROTY_NO_BROWSER=1` before running.
 
 ---
 
@@ -397,13 +369,13 @@ Your installed packages live inside the `venv` folder, which sits **inside** the
 Parroty folder. So:
 
 - If you **delete the whole folder** and re-download, you also delete the venv —
-  run `setup.bat` once more (or the manual install steps).
+  run the install steps once more.
 - If you only want the new code and want to **keep your installed packages**,
-  copy the new `app` folder, `requirements.txt`, and the `.bat` files over your
-  existing folder, leaving `venv` untouched. No reinstall needed.
+  copy the new `app` folder and `requirements.txt` over your existing folder,
+  leaving `venv` untouched. No reinstall needed.
 
 You only ever need to reinstall packages when `requirements.txt` changes (a new
-dependency was added). Re-running `setup.bat` is always safe — it reuses the
+dependency was added). Re-running the install is always safe — pip reuses the
 existing venv and only installs what's missing.
 
 ---
@@ -583,12 +555,10 @@ Parroty/
     `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then retry.
 - **"No module named 'torch'" or "No module named 'chatterbox'"** when you click
   Narrate or Preview — these packages aren't installed in the venv that's running
-  Parroty. The simplest fix is to re-run **`setup.bat`** (or double-click
-  **`fix_gpu.bat`** if only the GPU torch is missing). Manually: activate your
-  venv, run `pip install chatterbox-tts`, then `pip install --force-reinstall
-  torch torchaudio --index-url https://download.pytorch.org/whl/cu128` (torch
-  last so it isn't replaced by a CPU build). Confirm with
-  `python -c "import chatterbox, torch"` before retrying.
+  Parroty. Activate your venv, run `pip install chatterbox-tts`, then
+  `pip install --force-reinstall torch torchaudio --index-url
+  https://download.pytorch.org/whl/cu128` (torch last so it isn't replaced by a
+  CPU build). Confirm with `python -c "import chatterbox, torch"` before retrying.
 - **Built-in voices need no key** — the bundled male/female voices run fully
   offline. If you want to preview or use them, just pick one and click Preview.
 - **Port 5000 already in use** — change the port at the bottom of
