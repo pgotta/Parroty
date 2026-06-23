@@ -526,6 +526,7 @@ function renderResults(data){
   if (data.audio_file) links.push(dlLink(JOB, data.audio_file, "Download audiobook"));
   if (data.video_file) links.push(dlLink(JOB, data.video_file, "Download video"));
   if (data.timestamps_file) links.push(dlLink(JOB, data.timestamps_file, "Download YouTube chapters"));
+  if (data.drive_chapters_file) links.push(dlLink(JOB, data.drive_chapters_file, "Download Google Drive chapter page"));
   if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
   if (data.video_error)
     html += `<div class="line err">Video step: ${escapeHtml(data.video_error)}</div>`;
@@ -729,6 +730,7 @@ $("recoverBtn")?.addEventListener("click", async () => {
       if (d.audio_file) rlinks.push(dlLink(targetJob, d.audio_file, "Download audiobook"));
       if (d.video_file) rlinks.push(dlLink(targetJob, d.video_file, "Download video"));
       if (d.timestamps_file) rlinks.push(dlLink(targetJob, d.timestamps_file, "Download YouTube chapters"));
+      if (d.drive_chapters_file) rlinks.push(dlLink(targetJob, d.drive_chapters_file, "Download Google Drive chapter page"));
       if (rlinks.length) html += `<div class="report-links">${rlinks.join(" · ")}</div>`;
       if (d.video_error)
         html += `<div class="line err">Video step: ${escapeHtml(d.video_error)}</div>`;
@@ -1027,6 +1029,7 @@ async function resumeNarration(restoreData, withBind){
           video_file: ev.video_file,
           video_error: ev.video_error,
           timestamps_file: ev.timestamps_file,
+          drive_chapters_file: ev.drive_chapters_file,
         };
       } else if (ev.type === "bind_error"){
         addLine("err", `✕ ${escapeHtml(ev.message)}`);
@@ -1066,6 +1069,7 @@ function renderResumeReport(r, reportFile, files, failed){
   if (files.audio_file) links.push(dlLink(JOB, files.audio_file, "Download audiobook"));
   if (files.video_file) links.push(dlLink(JOB, files.video_file, "Download video"));
   if (files.timestamps_file) links.push(dlLink(JOB, files.timestamps_file, "Download YouTube chapters"));
+  if (files.drive_chapters_file) links.push(dlLink(JOB, files.drive_chapters_file, "Download Google Drive chapter page"));
   if (reportFile) links.push(dlLink(JOB, reportFile, "Download status report"));
   if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
   if (files.video_error) html += `<div class="line err">Video step: ${escapeHtml(files.video_error)}</div>`;
@@ -1145,6 +1149,7 @@ $("restoreBindBtn")?.addEventListener("click", async () => {
         if (ev.audio_file) blinks.push(dlLink(jobId, ev.audio_file, "Download audiobook"));
         if (ev.video_file) blinks.push(dlLink(jobId, ev.video_file, "Download video"));
         if (ev.timestamps_file) blinks.push(dlLink(jobId, ev.timestamps_file, "Download YouTube chapters"));
+        if (ev.drive_chapters_file) blinks.push(dlLink(jobId, ev.drive_chapters_file, "Download Google Drive chapter page"));
         if (blinks.length) html += `<div class="report-links">${blinks.join(" · ")}</div>`;
         if (ev.video_error) html += `<div class="line err">Video step: ${escapeHtml(ev.video_error)}</div>`;
         if (ev.timestamps){
@@ -1397,6 +1402,7 @@ async function bindSelectedChapters(jobId){
           if (ev.audio_file) links.push(dlLink(jobId, ev.audio_file, "Download audiobook"));
           if (ev.video_file) links.push(dlLink(jobId, ev.video_file, "Download video"));
           if (ev.timestamps_file) links.push(dlLink(jobId, ev.timestamps_file, "Download YouTube chapters"));
+          if (ev.drive_chapters_file) links.push(dlLink(jobId, ev.drive_chapters_file, "Download Google Drive chapter page"));
           if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
           if (ev.video_error) html += `<div class="line err">Video step: ${escapeHtml(ev.video_error)}</div>`;
           if (ev.timestamps){

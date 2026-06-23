@@ -62,7 +62,7 @@ from .epub_parser import parse_epub, Chapter
 from .document_parser import parse_document, SUPPORTED_EXTENSIONS as SUPPORTED_DOC_EXTENSIONS
 from .tts import get_engine, ENGINE_CATALOG
 from .assembler import (combine_chapters, build_youtube_timestamps,
-                        build_video, ensure_ffmpeg)
+                        build_video, ensure_ffmpeg, build_drive_chapter_page)
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS = os.path.join(BASE, "uploads")
@@ -851,9 +851,22 @@ def _bind_and_finish(jd, proj, data, *, report, results, start,
             with open(os.path.join(jd, ts_name), "w", encoding="utf-8") as f:
                 f.write(timestamps)
 
+            # Clickable chapter index for playing the video from Google Drive.
+            drive_name = yt_base.replace("youtube-chapters-",
+                                         "drive-chapters-", 1) + ".html"
+            try:
+                with open(os.path.join(jd, drive_name), "w",
+                          encoding="utf-8") as f:
+                    f.write(build_drive_chapter_page(
+                        combo["markers"], proj.get("title"),
+                        combo.get("total_ms")))
+            except Exception:
+                drive_name = None
+
             payload = {"type": "bind_done",
                        "audio_file": os.path.basename(audio_out),
-                       "timestamps": timestamps, "timestamps_file": ts_name}
+                       "timestamps": timestamps, "timestamps_file": ts_name,
+                       "drive_chapters_file": drive_name}
 
             if bind.get("make_video"):
                 image = proj.get("cover_image")
@@ -1848,11 +1861,23 @@ def recover(job_id):
                   encoding="utf-8") as f:
             f.write(timestamps)
 
+        # Clickable chapter index for playing the video from Google Drive.
+        drive_name = rec_yt.replace("youtube-chapters-",
+                                    "drive-chapters-", 1) + ".html"
+        try:
+            with open(os.path.join(jd, drive_name), "w",
+                      encoding="utf-8") as f:
+                f.write(build_drive_chapter_page(
+                    result["markers"], rec_title, result.get("total_ms")))
+        except Exception:
+            drive_name = None
+
         payload = {
             "type": "bind_done",
             "audio_file": os.path.basename(audio_out),
             "timestamps": timestamps,
             "timestamps_file": ts_name,
+            "drive_chapters_file": drive_name,
             "chapters_found": len(chapter_files),
         }
 

@@ -17,6 +17,9 @@ timestamps. Everything runs on your own machine and opens in Chrome.
   an **MP4** (cover image + audio) for YouTube.
 - **YouTube chapter markers generated for you** — a ready-to-paste timestamp list
   so YouTube auto-creates chapter jumps in your video.
+- **Clickable chapters for Google Drive too** — for books too long for YouTube,
+  Parroty builds a small page that turns each chapter into a link that opens the
+  Drive video at that point (chapter marks are also embedded in the MP4 for VLC).
 - **Edit chapters before narrating** — rename, delete, or add chapters, and
   drop chapters to fit YouTube's 12-hour limit.
 - **Built for long books on modest hardware:** a true low-memory mode that
@@ -519,6 +522,31 @@ you a button) into your description. They look like:
 
 YouTube requires the first stamp to be `00:00` and at least 3 chapters. The MP4
 also has chapter markers embedded directly (visible in players like VLC).
+
+---
+
+## Playing from Google Drive (with chapters)
+
+When a book is too long for YouTube (over 12 hours), you can play the MP4
+straight from Google Drive instead. Drive's player has no chapter menu, but its
+video links accept a start time, so after binding Parroty also gives you a
+**clickable chapter index**: a `drive-chapters-…html` file alongside the
+audiobook.
+
+To use it:
+
+1. Upload the MP4 to Google Drive and let it finish processing.
+2. Right-click it → **Share** → **Copy link**.
+3. Double-click the `drive-chapters-…html` file (it opens in your browser) and
+   paste that link into the box.
+
+Every chapter becomes a link that opens the Drive video at that point. The page
+is self-contained — keep it next to your audiobook and reuse it anytime; it needs
+no internet to build the links.
+
+For an actual in-player chapter menu instead of links, the MP4 has the chapter
+marks embedded directly, so downloading it and opening in **VLC** (or another
+desktop player) gives a real chapter list to jump around.
 
 ---
 
