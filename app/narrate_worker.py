@@ -77,6 +77,15 @@ class _FakeEngine:
                 if progress_callback:
                     progress_callback(s + 1, steps)
                 time.sleep(0.02)
+        # Mirror the real engine: write a one-cue timing sidecar for subtitles.
+        try:
+            with open(os.path.splitext(out_path)[0] + ".cues.json", "w",
+                      encoding="utf-8") as cf:
+                json.dump({"sr": rate, "cues": [
+                    {"start_ms": 0, "end_ms": int(secs * 1000),
+                     "text": (text or "").strip()}]}, cf)
+        except Exception:
+            pass
         return out_path
 
 

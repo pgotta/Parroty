@@ -43,17 +43,22 @@ contains the "app" folder and requirements.txt.
   THE TWO YOU ACTUALLY NEED
 ------------------------------------------------------------------------
 
-  setup.bat  - run ONCE to install everything.
-  run.bat    - run EVERY time you want to start Parroty.
+  setup.bat       - run ONCE to install everything.
+  run.bat         - run EVERY time you want to start Parroty.
+  run_hidden.bat  - optional: start Parroty with NO window at all (full GPU
+                    speed, nothing to keep in the foreground). Use instead of
+                    run.bat. Run it AFTER setup.bat, not instead of setup.
 
 Once they are created:
   - Double-click setup.bat and wait for it to finish (it downloads a lot
     the first time, including the GPU build of PyTorch).
   - Then double-click run.bat. Chrome opens automatically at
     http://127.0.0.1:5000.
-  - Keep the run.bat window open while narrating. You can minimize it, but
-    for full GPU speed keep it in the foreground.
-  - To stop, close the window or press Ctrl+C.
+  - You can minimize the run.bat window; Parroty opts out of Windows
+    background throttling so the GPU stays fast even when it isn't focused.
+    Prefer no window at all? Use run_hidden.bat instead - Chrome still opens
+    and all output is saved to parroty.log.
+  - To stop, close the window or press Ctrl+C (or run stop.bat).
 
 
 ========================================================================
@@ -225,11 +230,51 @@ pause
   OPTIONAL EXTRAS
 ------------------------------------------------------------------------
 
+  run_hidden.bat - optional: start Parroty with no window at all (see the
+                   run instructions above). Use instead of run.bat.
   stop.bat       - stops a running Parroty server.
   check_gpu.bat  - shows whether your GPU is being used.
   fix_gpu.bat    - reinstalls the GPU build of PyTorch if it fell back
                    to CPU (run this if check_gpu shows "GPU available: False"
                    but you have an NVIDIA card).
+
+
+========================================================================
+  FILE:  run_hidden.bat  (optional - start with no window, full GPU speed)
+========================================================================
+
+@echo off
+REM ============================================================
+REM  Parroty - start HIDDEN (no console window).
+REM  Runs the server with pythonw.exe, so nothing shows on screen
+REM  and there is no window to keep in the foreground. The app
+REM  opts out of Windows background throttling itself, so the GPU
+REM  still runs at full speed.
+REM
+REM  Chrome still opens at http://127.0.0.1:5000, and all output
+REM  is saved to parroty.log. To stop it, use stop.bat (or end
+REM  "pythonw.exe" in Task Manager).
+REM
+REM  Run this AFTER setup.bat - it's an alternative to run.bat,
+REM  not a replacement for setup.
+REM ============================================================
+
+cd /d "%~dp0"
+
+if not exist "venv\Scripts\pythonw.exe" (
+    echo No virtual environment found. Please run setup.bat first.
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Tell the server it's running windowless so it logs to parroty.log.
+set "PARROTY_HIDDEN=1"
+
+REM Launch windowless and detached; this launcher then exits, leaving no window.
+start "" "%CD%\venv\Scripts\pythonw.exe" -m app.server
+
+exit /b 0
 
 
 ========================================================================

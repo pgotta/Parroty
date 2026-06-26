@@ -332,16 +332,24 @@ def _prepare_cover(image_path: str, work_dir: str) -> str:
 
 def build_video(audio_path: str, image_path: str, out_path: str,
                 markers: list = None, total_ms: int = None,
-                progress_callback=None) -> str:
+                progress_callback=None, subtitle_path: str = None,
+                subtitle_mode: str = "none") -> str:
     """Combine a static image + audio into an mp4 using ffmpeg.
 
     If markers are supplied, embeds chapter metadata into the file too.
+    subtitle_mode: 'none' | 'soft' (toggleable track, like VLC) | 'burn'
+    (rendered permanently into the picture). For 'burn' we raise the frame rate
+    so cue timing isn't quantized to whole seconds.
     If progress_callback is given, it's called with a 0..1 fraction as the
     encode advances (parsed from ffmpeg's -progress output).
     Raises RuntimeError with ffmpeg's stderr if the encode fails.
     """
     work_dir = os.path.dirname(out_path)
     image_path = _prepare_cover(image_path, work_dir)
+
+    burn = (subtitle_mode == "burn" and subtitle_path and os.path.exists(subtitle_path))
+    soft = (subtitle_mode == "soft" and subtitle_path and os.path.exists(subtitle_path))
+    fps = 10 if burn else 1            # smoother cue timing when burning
 
     meta_file = None
     if markers and total_ms is not None:
@@ -353,28 +361,53 @@ def build_video(audio_path: str, image_path: str, out_path: str,
         "ffmpeg", "-y",
         # A static cover needs only a very low frame rate. Encoding 1 fps
         # instead of the default ~25 cuts the work by ~25x with no visible
-        # difference (the image never changes).
-        "-loop", "1", "-framerate", "1", "-i", image_path,
+        # difference (the image never changes). Burned subtitles bump this up.
+        "-loop", "1", "-framerate", str(fps), "-i", image_path,
         "-i", audio_path,
     ]
+    idx = 2
+    meta_idx = None
     if meta_file:
-        cmd += ["-i", meta_file, "-map_metadata", "2", "-map_chapters", "2"]
+        cmd += ["-i", meta_file]
+        meta_idx = idx
+        idx += 1
+    subs_idx = None
+    if soft:
+        cmd += ["-i", subtitle_path]
+        subs_idx = idx
+        idx += 1
+
+    if meta_idx is not None:
+        cmd += ["-map_metadata", str(meta_idx), "-map_chapters", str(meta_idx)]
+    cmd += ["-map", "0:v", "-map", "1:a"]
+    if subs_idx is not None:
+        cmd += ["-map", f"{subs_idx}:s"]
+
+    vf = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+    if burn:
+        # bare filename resolved via cwd=work_dir (avoids Windows path/colon
+        # quirks in the subtitles filter)
+        vf += f",subtitles=filename='{os.path.basename(subtitle_path)}'"
+
     cmd += [
-        "-map", "0:v", "-map", "1:a",
         "-c:v", "libx264",
-        # 'ultrafast' prioritizes encode speed (slightly larger file) — the
-        # right trade for a single still image. '-tune stillimage' optimizes
-        # for static content.
         "-preset", "ultrafast", "-tune", "stillimage",
-        "-r", "1",                       # output frame rate (matches input)
+        "-r", str(fps),
         "-pix_fmt", "yuv420p",
-        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-vf", vf,
         "-c:a", "aac", "-b:a", "192k",
+    ]
+    if subs_idx is not None:
+        cmd += ["-c:s", "mov_text"]
+    cmd += [
         "-shortest",
         # Machine-readable progress on stdout so we can report a % + ETA.
         "-progress", "pipe:1", "-nostats",
         out_path,
     ]
+
+    run_kw = dict(_no_window_kwargs())
+    run_kw["cwd"] = work_dir            # so the subtitles filter finds the .srt
 
     if progress_callback and total_ms:
         # Stream ffmpeg's progress output and report fraction done.
@@ -390,7 +423,7 @@ def build_video(audio_path: str, image_path: str, out_path: str,
         # it from the parent console's control events.
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=True,
-                                **_no_window_kwargs())
+                                **run_kw)
         err_tail = []
 
         def _drain_stderr():
@@ -429,7 +462,7 @@ def build_video(audio_path: str, image_path: str, out_path: str,
         return out_path
 
     # No progress callback: simple blocking run.
-    proc = subprocess.run(cmd, capture_output=True, **_no_window_kwargs())
+    proc = subprocess.run(cmd, capture_output=True, **run_kw)
     if meta_file and os.path.exists(meta_file):
         os.unlink(meta_file)
     if proc.returncode != 0:

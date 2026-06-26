@@ -350,9 +350,14 @@ class ChatterboxEngine(TTSEngine):
         total = len(chunks)
 
         import gc
+        import json
+        sr = int(self.model.sr)
         wav_path = os.path.splitext(out_path)[0] + ".wav"
-        writer = _StreamingWavWriter(wav_path, int(self.model.sr), channels=1)
-        gap = torch.zeros(1, int(self.model.sr * 0.25))   # silence between chunks
+        writer = _StreamingWavWriter(wav_path, sr, channels=1)
+        gap = torch.zeros(1, int(sr * 0.25))   # silence between chunks
+        gap_samples = int(sr * 0.25)
+        cues = []                              # exact subtitle timing per chunk
+        cur_samples = 0
 
         try:
             for idx, chunk in enumerate(chunks):
@@ -376,6 +381,20 @@ class ChatterboxEngine(TTSEngine):
                             safe["audio_prompt_path"] = speaker_wav
                         wav = self.model.generate(chunk, **safe)
 
+                # Exact cue timing: this chunk's spoken audio spans
+                # [cur_samples, cur_samples + n] before the trailing gap.
+                try:
+                    n = int(wav.shape[-1])
+                except Exception:
+                    n = 0
+                if n > 0:
+                    cues.append({
+                        "start_ms": round(cur_samples / sr * 1000.0),
+                        "end_ms": round((cur_samples + n) / sr * 1000.0),
+                        "text": chunk,
+                    })
+                    cur_samples += n + gap_samples
+
                 # Write this chunk straight to disk, then release it so memory
                 # stays flat no matter how long the chapter is.
                 writer.append(wav)
@@ -395,6 +414,15 @@ class ChatterboxEngine(TTSEngine):
                     progress_callback((idx + 1) / total, 1.0)
         finally:
             writer.close()
+
+        # Sidecar of exact spoken-chunk timings, so the binder can build a
+        # frame-accurate .srt later (it's offset by each chapter's start time).
+        try:
+            with open(os.path.splitext(out_path)[0] + ".cues.json", "w",
+                      encoding="utf-8") as cf:
+                json.dump({"sr": sr, "cues": cues}, cf)
+        except Exception:
+            pass
 
         # One cleanup at the end of the chapter (including the GPU cache). Doing
         # it here rather than per-chunk lets the GPU stay saturated during the

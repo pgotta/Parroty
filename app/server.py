@@ -63,6 +63,7 @@ from .document_parser import parse_document, SUPPORTED_EXTENSIONS as SUPPORTED_D
 from .tts import get_engine, ENGINE_CATALOG
 from .assembler import (combine_chapters, build_youtube_timestamps,
                         build_video, ensure_ffmpeg, build_drive_chapter_page)
+from .subtitles import write_srt as write_subtitles
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS = os.path.join(BASE, "uploads")
@@ -851,6 +852,23 @@ def _bind_and_finish(jd, proj, data, *, report, results, start,
             with open(os.path.join(jd, ts_name), "w", encoding="utf-8") as f:
                 f.write(timestamps)
 
+            # Exact subtitles (.srt) from the narrator's per-chunk timing.
+            # Off => skip; Soft/Burned-in => write the file (and embed below).
+            sub_mode = (bind.get("subtitles") or "none").lower()
+            sub_name = None
+            sub_path = None
+            if sub_mode in ("soft", "burn"):
+                try:
+                    subs = [{"path": p, "start_ms": combo["markers"][i][1]}
+                            for i, (t, p) in enumerate(proj["chapter_files"])]
+                    srt_path = os.path.join(
+                        jd, yt_base.replace("youtube-chapters-", "subtitles-", 1) + ".srt")
+                    sub_name = write_subtitles(subs, srt_path)
+                    if sub_name:
+                        sub_path = srt_path
+                except Exception:
+                    sub_name = None
+
             # Clickable chapter index for playing the video from Google Drive.
             drive_name = yt_base.replace("youtube-chapters-",
                                          "drive-chapters-", 1) + ".html"
@@ -866,7 +884,8 @@ def _bind_and_finish(jd, proj, data, *, report, results, start,
             payload = {"type": "bind_done",
                        "audio_file": os.path.basename(audio_out),
                        "timestamps": timestamps, "timestamps_file": ts_name,
-                       "drive_chapters_file": drive_name}
+                       "drive_chapters_file": drive_name,
+                       "subtitles_file": sub_name}
 
             if bind.get("make_video"):
                 image = proj.get("cover_image")
@@ -893,7 +912,9 @@ def _bind_and_finish(jd, proj, data, *, report, results, start,
                             build_video(audio_out, image, video_out,
                                         markers=combo["markers"],
                                         total_ms=combo["total_ms"],
-                                        progress_callback=vcb)
+                                        progress_callback=vcb,
+                                        subtitle_path=sub_path,
+                                        subtitle_mode=sub_mode)
                         except Exception as e:
                             vstate["err"] = str(e)
                         finally:
@@ -1817,6 +1838,7 @@ def recover(job_id):
     data = request.get_json(force=True) if request.data else {}
     make_video = data.get("make_video", False)
     audio_fmt = data.get("format", "mp3")
+    sub_mode = (data.get("subtitles") or "none").lower()
 
     # Optional: only include a subset of chapters (by their 1-based position in
     # the full list). Lets the user drop chapters (e.g. to fit YouTube's 12-hour
@@ -1861,6 +1883,21 @@ def recover(job_id):
                   encoding="utf-8") as f:
             f.write(timestamps)
 
+        # Exact subtitles (.srt) from the narrator's per-chunk timing.
+        sub_name = None
+        sub_path = None
+        if sub_mode in ("soft", "burn"):
+            try:
+                subs = [{"path": p, "start_ms": result["markers"][i][1]}
+                        for i, (t, p) in enumerate(chapter_files)]
+                srt_path = os.path.join(
+                    jd, rec_yt.replace("youtube-chapters-", "subtitles-", 1) + ".srt")
+                sub_name = write_subtitles(subs, srt_path)
+                if sub_name:
+                    sub_path = srt_path
+            except Exception:
+                sub_name = None
+
         # Clickable chapter index for playing the video from Google Drive.
         drive_name = rec_yt.replace("youtube-chapters-",
                                     "drive-chapters-", 1) + ".html"
@@ -1878,6 +1915,7 @@ def recover(job_id):
             "timestamps": timestamps,
             "timestamps_file": ts_name,
             "drive_chapters_file": drive_name,
+            "subtitles_file": sub_name,
             "chapters_found": len(chapter_files),
         }
 
@@ -1905,7 +1943,9 @@ def recover(job_id):
                             build_video(audio_out, image, video_out,
                                         markers=result["markers"],
                                         total_ms=result["total_ms"],
-                                        progress_callback=vcb)
+                                        progress_callback=vcb,
+                                        subtitle_path=sub_path,
+                                        subtitle_mode=sub_mode)
                         except Exception as e:
                             vstate["err"] = str(e)
                         finally:
@@ -2258,7 +2298,21 @@ def _disable_windows_quickedit():
 
 
 if __name__ == "__main__":
+    import sys
     import threading
+
+    # When launched windowless (pythonw.exe via run_hidden.bat) there is no
+    # console: sys.stdout/stderr can be None and any print would crash. Send all
+    # output to parroty.log — the same file run.bat's Tee writes for the visible
+    # console — so hidden mode logs identically and never dies on a print.
+    if os.environ.get("PARROTY_HIDDEN") == "1" or sys.stdout is None:
+        try:
+            _logf = open(os.path.join(BASE, "parroty.log"), "a",
+                         buffering=1, encoding="utf-8", errors="replace")
+            sys.stdout = _logf
+            sys.stderr = _logf
+        except Exception:
+            pass
 
     # Prevent the Windows console from pausing the app when minimized/clicked.
     _disable_windows_quickedit()

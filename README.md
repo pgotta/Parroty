@@ -6,6 +6,30 @@ audiobook: one audio file per chapter, then optionally combined into a single
 audiobook plus an MP4 (static image + audio) with YouTube-ready chapter
 timestamps. Everything runs on your own machine and opens in Chrome.
 
+## Table of Contents
+
+- [Highlights](#highlights)
+- [Known issues](#known-issues)
+- [Screenshots](#screenshots)
+- [What it does](#what-it-does)
+- [Voice engines](#voice-engines)
+- [Requirements & disk space](#requirements--disk-space)
+- [Tested on](#tested-on)
+- [Install and run](#install-and-run)
+- [Setup from scratch (Python only)](#setup-from-scratch-python-only)
+- [Running and stopping](#running-and-stopping)
+- [Updating to a new version](#updating-to-a-new-version)
+- [Run it overnight (narrate + bind in one pass)](#run-it-overnight-narrate--bind-in-one-pass)
+- [Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed)
+- [Memory use on 16 GB machines](#memory-use-on-16-gb-machines)
+- [How YouTube chapters work](#how-youtube-chapters-work)
+- [Playing from Google Drive (with chapters)](#playing-from-google-drive-with-chapters)
+- [Project layout](#project-layout)
+- [Troubleshooting](#troubleshooting)
+- [Notes](#notes)
+- [Tech stack](#tech-stack)
+- [License](#license)
+
 ## Highlights
 
 - **Any common book/document format in:** EPUB, PDF, Word (.docx), TXT, Markdown,
@@ -31,24 +55,23 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 
 ## Known issues
 
-**⚠️ Keep the Parroty console window in the foreground while narrating, or the
-GPU slows down.** When the Parroty console window (the one running the app) loses
-focus or is minimized, Windows throttles the process and GPU utilization drops
-sharply — often to around 10%. Bringing the window back to the foreground
-immediately restores full speed.
+**GPU can throttle when Parroty isn't in the foreground.** When the Parroty
+console window loses focus or is minimized, Windows can throttle the process and
+GPU utilization drops sharply — sometimes to around 10%. Parroty already opts
+itself **and its narration workers** out of Windows' background power throttling
+(EcoQoS), raises priority, and keeps the system awake, which fixes this on most
+machines — but on some laptops it isn't always enough on its own.
 
-Parroty already tries to opt itself **and its narration workers** out of
-Windows' background power throttling (EcoQoS), raise its priority, and keep the
-system awake — but on some machines, **especially laptops**, that isn't enough to
-fully prevent the slowdown. This is a known bug we're still working on.
+**Recommended workaround — run with no window at all:** start Parroty with
+**`run_hidden.bat`** instead of `run.bat`. It launches the server with
+`pythonw.exe`, so there's no console window to lose focus in the first place — the
+browser keeps focus and the GPU stays at full speed. Chrome still opens at
+http://127.0.0.1:5000 and all output is saved to `parroty.log`. Stop it with
+`stop.bat` (or end `pythonw.exe` in Task Manager).
 
-**Workaround for now:** while a book is narrating, keep the Parroty console
-window **visible and in the foreground** (not minimized, and not fully covered by
-another window). You can still glance at other apps, but leaving Parroty's window
-on top keeps the GPU at full speed. On a laptop, also plug in AC power and apply
-the power settings under
-[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed) below — but even
-with those, foreground focus is currently required for maximum throughput.
+If you prefer the visible console (`run.bat`), keep that window unminimized while
+narrating, and on a laptop plug in AC power and apply the settings under
+[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed) below.
 
 ## Screenshots
 
@@ -89,7 +112,17 @@ adjustable memory-flush interval for machines with a small page file:
 4. **Narrate** — produces one audio file per chapter.
 5. **Bind** — combine all chapters into one audiobook, optionally with a cover
    image as an MP4, plus a `youtube_chapters.txt` you can paste into a video
-   description so YouTube auto-creates chapter markers.
+   description so YouTube auto-creates chapter markers, and a **subtitles
+   `.srt`** with timing taken straight from the narration (see below).
+
+**Subtitles (`.srt`):** binding also writes a `subtitles-…srt` file. As each
+chapter is narrated, Parroty records the exact start/end of every spoken chunk
+from the generated audio, so the subtitle timing matches the MP3 precisely (not
+estimated) and the text is the book's own words. Download it from the bind
+results. It drops straight into SeeStory, which can burn it into the video or
+add it as a toggleable track. Subtitles are produced for the local Chatterbox
+voice; cloud engines that synthesize a whole chapter at once don't expose
+per-chunk timing, so those chapters are skipped.
 
 ## Voice engines
 
@@ -105,6 +138,52 @@ provider, never stored. You pay the provider directly on your own account.
 WARNING: Only clone voices you own or have explicit permission to use.
 
 ---
+
+## Requirements & disk space
+
+> **FYI — read before installing.** The local voice engine pulls down PyTorch and
+> a TTS model, so it needs some room and (ideally) a CUDA GPU. The cloud voices
+> (OpenAI / ElevenLabs) need almost no disk and no GPU.
+
+| Need | Detail |
+|------|--------|
+| OS | Windows 10/11 for the `.bat` launchers; macOS/Linux work from the command line |
+| GPU | Only for the local **Chatterbox** engine: NVIDIA with CUDA (the **CUDA 12.8** build for RTX 50‑series). **8 GB VRAM is plenty** for TTS. CPU‑only works but is much slower; Apple Silicon (Metal) also accelerates Chatterbox. Cloud voices need no GPU. |
+| ffmpeg | Required — combines the per‑chapter audio and builds the MP4 |
+| Python | 3.10+ (3.12 recommended) |
+| Accounts (optional) | An OpenAI or ElevenLabs API key only if you use those cloud voices |
+
+**Disk space — budget ~10–15 GB free** (only if you use the local engine):
+
+| Item | Approx. size | When |
+|------|-------------|------|
+| Python venv (PyTorch CUDA + dependencies) | ~5–8 GB | at setup |
+| Chatterbox voice model | a few GB | first time you narrate locally |
+| Your generated audio (per‑chapter MP3s + combined audiobook + MP4) | varies — a long book can be 1–3 GB | as you narrate |
+
+The Chatterbox model is downloaded once and cached in your Hugging Face cache
+(`%USERPROFILE%\.cache\huggingface`). If you only use the cloud voices, you can
+skip the local engine entirely and the footprint is tiny.
+
+## Tested on
+
+Parroty is a solo-developer project, built and run on a single Windows laptop.
+Other setups should work — any CUDA NVIDIA GPU, CPU-only, or Apple Silicon for
+the local engine, and macOS/Linux for the cloud voices — but the specs below are
+the exact machine it has been verified on.
+
+| Component | Tested spec |
+|-----------|-------------|
+| GPU | NVIDIA GeForce RTX 5060 Laptop GPU — 8 GB VRAM |
+| System RAM | 16 GB |
+| CPU | _add your CPU here_ |
+| OS | Windows 11 |
+| Python | 3.12 |
+| PyTorch | CUDA 12.8 (`cu128`) build |
+| ffmpeg | latest stable |
+
+The 8 GB VRAM / 16 GB RAM pairing is exactly why low-memory mode and process
+recycling exist — see [Memory use on 16 GB machines](#memory-use-on-16-gb-machines).
 
 ## Install and run
 
@@ -345,6 +424,13 @@ python -m app.server
 It starts a local server and **automatically opens Chrome** to
 `http://127.0.0.1:5000` (falling back to your default browser if Chrome isn't
 installed). Press **Ctrl+C** to stop.
+
+**Hidden (no window):** double-click **`run_hidden.bat`** to start Parroty with no
+console window at all (it runs under `pythonw.exe`). Chrome still opens
+automatically and output goes to `parroty.log`; stop it with `stop.bat`. This
+sidesteps the foreground/throttling note in [Known issues](#known-issues). Run it
+**after** `setup.bat` — it's an alternative to `run.bat`, not a replacement for
+setup.
 
 Starting again later needs no reinstall — setup is one-time. Open a terminal,
 `cd` into the Parroty folder, activate the venv, and run the server:

@@ -209,6 +209,15 @@
         <input type="file" id="coverInput" accept="image/*">
         <p class="muted" id="coverNote"></p>
       </div>
+      <div class="field" id="subtitleField">
+        <label for="subtitleMode">Subtitles</label>
+        <select id="subtitleMode">
+          <option value="none" selected>Off</option>
+          <option value="soft">Soft — toggleable track (turn on/off in your player, like VLC)</option>
+          <option value="burn">Burned-in — always visible, baked into the MP4</option>
+        </select>
+        <p class="muted">Timing is taken from the narration, so it matches the audio exactly. Soft or Burned-in also saves a <code>.srt</code> file you can drop straight into SeeStory (works even without an MP4).</p>
+      </div>
       <label class="check" title="After every N chapters, Parroty pauses, fully shuts down and restarts the narration process — which makes Windows hand back ALL the RAM and page-file memory it was using — then automatically continues from the exact chapter it left on. This keeps memory flat for the whole book, so even very long books finish without 'out of memory' or 'bad allocation' errors on machines with limited RAM. Smaller N = steadier memory; larger N = fewer restarts.">
         <input type="checkbox" id="lowMem" checked> Low-memory mode
       </label>

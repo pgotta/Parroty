@@ -527,6 +527,7 @@ function renderResults(data){
   if (data.video_file) links.push(dlLink(JOB, data.video_file, "Download video"));
   if (data.timestamps_file) links.push(dlLink(JOB, data.timestamps_file, "Download YouTube chapters"));
   if (data.drive_chapters_file) links.push(dlLink(JOB, data.drive_chapters_file, "Download Google Drive chapter page"));
+  if (data.subtitles_file) links.push(dlLink(JOB, data.subtitles_file, "Download subtitles (.srt)"));
   if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
   if (data.video_error)
     html += `<div class="line err">Video step: ${escapeHtml(data.video_error)}</div>`;
@@ -556,6 +557,7 @@ $("narrateBtn").addEventListener("click", async () => {
     enabled: $("bindCombine").checked || $("makeVideo").checked,
     make_video: $("makeVideo").checked,
     format: "mp3",
+    subtitles: ($("subtitleMode")?.value || "none"),
   };
 
   try {
@@ -712,7 +714,7 @@ $("recoverBtn")?.addEventListener("click", async () => {
   show("recoverProgress");
   prog.innerHTML = `<div class="line">Combining existing chapter files…</div>`;
 
-  const body = { make_video: $("makeVideo").checked, format: "mp3" };
+  const body = { make_video: $("makeVideo").checked, format: "mp3", subtitles: ($("subtitleMode")?.value || "none") };
   try {
     const r = await fetch(`/recover/${targetJob}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -731,6 +733,7 @@ $("recoverBtn")?.addEventListener("click", async () => {
       if (d.video_file) rlinks.push(dlLink(targetJob, d.video_file, "Download video"));
       if (d.timestamps_file) rlinks.push(dlLink(targetJob, d.timestamps_file, "Download YouTube chapters"));
       if (d.drive_chapters_file) rlinks.push(dlLink(targetJob, d.drive_chapters_file, "Download Google Drive chapter page"));
+      if (d.subtitles_file) rlinks.push(dlLink(targetJob, d.subtitles_file, "Download subtitles (.srt)"));
       if (rlinks.length) html += `<div class="report-links">${rlinks.join(" · ")}</div>`;
       if (d.video_error)
         html += `<div class="line err">Video step: ${escapeHtml(d.video_error)}</div>`;
@@ -929,7 +932,7 @@ async function resumeNarration(restoreData, withBind){
     // When binding, the server auto-combines after narration in the same
     // stream, freeing the model first so memory is released between phases.
     bind: withBind
-      ? { enabled: true, make_video: !!makeVideo, format: "mp3" }
+      ? { enabled: true, make_video: !!makeVideo, format: "mp3", subtitles: ($("subtitleMode")?.value || "none") }
       : { enabled: false },
   };
   show("restoreProgress");
@@ -1030,6 +1033,7 @@ async function resumeNarration(restoreData, withBind){
           video_error: ev.video_error,
           timestamps_file: ev.timestamps_file,
           drive_chapters_file: ev.drive_chapters_file,
+          subtitles_file: ev.subtitles_file,
         };
       } else if (ev.type === "bind_error"){
         addLine("err", `✕ ${escapeHtml(ev.message)}`);
@@ -1070,6 +1074,7 @@ function renderResumeReport(r, reportFile, files, failed){
   if (files.video_file) links.push(dlLink(JOB, files.video_file, "Download video"));
   if (files.timestamps_file) links.push(dlLink(JOB, files.timestamps_file, "Download YouTube chapters"));
   if (files.drive_chapters_file) links.push(dlLink(JOB, files.drive_chapters_file, "Download Google Drive chapter page"));
+  if (files.subtitles_file) links.push(dlLink(JOB, files.subtitles_file, "Download subtitles (.srt)"));
   if (reportFile) links.push(dlLink(JOB, reportFile, "Download status report"));
   if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
   if (files.video_error) html += `<div class="line err">Video step: ${escapeHtml(files.video_error)}</div>`;
@@ -1127,7 +1132,7 @@ $("restoreBindBtn")?.addEventListener("click", async () => {
   prog.innerHTML = `<div class="line">Combining existing chapter files…</div>`;
   let videoLogged = false;
   try {
-    await streamSSE(`/recover/${jobId}`, { make_video: makeVideo, format: "mp3" }, (ev) => {
+    await streamSSE(`/recover/${jobId}`, { make_video: makeVideo, format: "mp3", subtitles: ($("subtitleMode")?.value || "none") }, (ev) => {
       if (ev.type === "bind_progress"){
         if (ev.stage === "video"){
           const vpct = Math.round((ev.frac || 0) * 100);
@@ -1150,6 +1155,7 @@ $("restoreBindBtn")?.addEventListener("click", async () => {
         if (ev.video_file) blinks.push(dlLink(jobId, ev.video_file, "Download video"));
         if (ev.timestamps_file) blinks.push(dlLink(jobId, ev.timestamps_file, "Download YouTube chapters"));
         if (ev.drive_chapters_file) blinks.push(dlLink(jobId, ev.drive_chapters_file, "Download Google Drive chapter page"));
+        if (ev.subtitles_file) blinks.push(dlLink(jobId, ev.subtitles_file, "Download subtitles (.srt)"));
         if (blinks.length) html += `<div class="report-links">${blinks.join(" · ")}</div>`;
         if (ev.video_error) html += `<div class="line err">Video step: ${escapeHtml(ev.video_error)}</div>`;
         if (ev.timestamps){
@@ -1381,7 +1387,7 @@ async function bindSelectedChapters(jobId){
 
   try {
     await streamSSE(`/recover/${jobId}`,
-      { make_video: makeVideo, format: "mp3", selected_chapters: selected },
+      { make_video: makeVideo, format: "mp3", subtitles: ($("subtitleMode")?.value || "none"), selected_chapters: selected },
       (ev) => {
         if (ev.type === "bind_progress"){
           if (ev.stage === "video"){
@@ -1403,6 +1409,7 @@ async function bindSelectedChapters(jobId){
           if (ev.video_file) links.push(dlLink(jobId, ev.video_file, "Download video"));
           if (ev.timestamps_file) links.push(dlLink(jobId, ev.timestamps_file, "Download YouTube chapters"));
           if (ev.drive_chapters_file) links.push(dlLink(jobId, ev.drive_chapters_file, "Download Google Drive chapter page"));
+          if (ev.subtitles_file) links.push(dlLink(jobId, ev.subtitles_file, "Download subtitles (.srt)"));
           if (links.length) html += `<div class="report-links">${links.join(" · ")}</div>`;
           if (ev.video_error) html += `<div class="line err">Video step: ${escapeHtml(ev.video_error)}</div>`;
           if (ev.timestamps){
