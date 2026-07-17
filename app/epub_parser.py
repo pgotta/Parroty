@@ -48,9 +48,39 @@ def _clean_html_to_text(html: str) -> str:
     for br in soup.find_all("br"):
         br.replace_with("\n")
 
+    # Collect text from block elements — but never emit the same words twice.
+    # A chapter wrapped in a container (the very common
+    # `<div><p>…</p><p>…</p></div>`) would otherwise be emitted twice: once via
+    # the outer div's get_text(), then again via each inner p. That doubled text
+    # gets narrated twice, so every chapter is read out two times.
+    #
+    # For each block we take only its OWN direct text (the text belonging to it
+    # rather than to a nested block). That keeps each passage exactly once, in
+    # document order, while still catching loose text sitting directly inside a
+    # container alongside its paragraphs.
+    # Blocks we emit text for. CONTAINERS are elements that only wrap other
+    # blocks (lists, tables, sections); they're never emitted themselves, but
+    # they must be recognised so an enclosing div doesn't swallow their text
+    # and repeat it. Missing one here means every item inside it gets read twice.
+    BLOCKS = ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li",
+              "blockquote", "pre", "figcaption", "dt", "dd", "td", "th"]
+    CONTAINERS = ["ul", "ol", "table", "thead", "tbody", "tr", "dl",
+                  "section", "article", "main", "aside", "nav", "header",
+                  "footer", "figure"]
+    SKIP_INSIDE = BLOCKS + CONTAINERS
     blocks = []
-    for el in soup.find_all(["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
-        chunk = el.get_text(" ", strip=True)
+    for el in soup.find_all(BLOCKS):
+        parts = []
+        for child in el.children:
+            # Skip nested blocks/containers — they're emitted on their own pass.
+            if getattr(child, "name", None) in SKIP_INSIDE:
+                continue
+            piece = (child.get_text(" ", strip=True)
+                     if getattr(child, "name", None)
+                     else str(child).strip())
+            if piece:
+                parts.append(piece)
+        chunk = " ".join(parts).strip()
         if chunk:
             blocks.append(chunk)
 

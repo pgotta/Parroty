@@ -118,13 +118,58 @@ def _sentences(text):
     return [p.strip() for p in parts if p.strip()]
 
 
+def _split_long(sentence, max_chars):
+    """Break a single over-long sentence into <=max_chars pieces.
+
+    Chatterbox's text encoder has a fixed maximum input length. Handing it a
+    sentence longer than that triggers a CUDA *device-side assert* (an
+    out-of-range index inside the kernel), which kills the whole CUDA context —
+    the run can't be retried, it has to be restarted. Books hit this with
+    unpunctuated run-ons, long list-like sentences, tables of contents, and
+    citation blocks, which sentence-splitting alone never breaks up.
+
+    Split at the most natural boundary available, in order of preference:
+    clause punctuation, then any whitespace, then (last resort) a hard cut.
+    """
+    out = []
+    rest = sentence.strip()
+    while len(rest) > max_chars:
+        window = rest[:max_chars]
+        cut = -1
+        # 1) Prefer a clause boundary (semicolon, colon, comma, dash).
+        for sep in ("; ", ": ", ", ", " — ", " - "):
+            idx = window.rfind(sep)
+            if idx > cut:
+                cut = idx + len(sep) - 1
+        # 2) Otherwise break at the last space.
+        if cut <= 0:
+            cut = window.rfind(" ")
+        # 3) Otherwise hard-cut (a single unbroken token longer than the limit).
+        if cut <= 0:
+            cut = max_chars - 1
+        piece = rest[:cut + 1].strip()
+        if piece:
+            out.append(piece)
+        rest = rest[cut + 1:].strip()
+    if rest:
+        out.append(rest)
+    return out
+
+
 def _batch(sentences, max_chars=280):
+    """Group sentences into chunks of at most `max_chars` characters.
+
+    Any single sentence longer than max_chars is split first — without that,
+    an over-long sentence sails through as one oversized chunk and asserts
+    inside the model's CUDA kernel.
+    """
     out, buf = [], ""
     for s in sentences:
-        if len(buf) + len(s) + 1 > max_chars and buf:
-            out.append(buf.strip())
-            buf = ""
-        buf += " " + s
+        for part in (_split_long(s, max_chars) if len(s) > max_chars else [s]):
+            if len(buf) + len(part) + 1 > max_chars and buf:
+                out.append(buf.strip())
+                buf = ""
+            buf += " " + part
     if buf.strip():
         out.append(buf.strip())
     return out

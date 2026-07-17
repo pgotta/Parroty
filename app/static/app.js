@@ -877,6 +877,9 @@ $("restoreResumeBtn")?.addEventListener("click", async () => {
       prog.innerHTML += `<div class="line err">✕ ${escapeHtml(d.error)}</div>`;
       return;
     }
+    if (d.repaired_chapters){
+      prog.innerHTML += `<div class="line done">✓ Fixed ${d.repaired_chapters} chapter${d.repaired_chapters === 1 ? "" : "s"} whose text was saved twice by an older version — the remaining chapters will be narrated once, not twice. Chapters already narrated keep their existing audio (which still has the repeat); re-narrate them if you want them clean.</div>`;
+    }
     if (d.already_done >= d.total_chapters){
       prog.innerHTML += `<div class="line done">✓ This run is already complete (${d.already_done}/${d.total_chapters} chapters). Use "Just bind what's done" to build the audiobook — there's nothing left to narrate.</div>`;
       return;

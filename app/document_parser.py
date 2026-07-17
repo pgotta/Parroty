@@ -206,12 +206,31 @@ def _parse_html(path: str, title: str) -> ParsedBook:
     doc_title = (soup.title.get_text(strip=True) if soup.title else "") or title
 
     blocks, flags = [], []
-    for el in soup.find_all(["h1", "h2", "h3", "h4", "p", "div", "li"]):
-        text = el.get_text(" ", strip=True)
+    # Take only each element's OWN direct text. Using get_text() on every
+    # matched element would emit a wrapped chapter twice — once via the
+    # container (`<div>`), then again via each `<p>` inside it — which then
+    # gets narrated twice. See the matching note in epub_parser.
+    HEADINGS = ("h1", "h2", "h3", "h4")
+    BLOCKS = ["h1", "h2", "h3", "h4", "p", "div", "li"]
+    CONTAINERS = ["ul", "ol", "table", "thead", "tbody", "tr", "dl",
+                  "section", "article", "main", "aside", "header", "footer",
+                  "figure", "blockquote"]
+    SKIP_INSIDE = BLOCKS + CONTAINERS
+    for el in soup.find_all(BLOCKS):
+        parts = []
+        for child in el.children:
+            if getattr(child, "name", None) in SKIP_INSIDE:
+                continue
+            piece = (child.get_text(" ", strip=True)
+                     if getattr(child, "name", None)
+                     else str(child).strip())
+            if piece:
+                parts.append(piece)
+        text = " ".join(parts).strip()
         if not text:
             continue
         blocks.append(text)
-        flags.append(el.name in ("h1", "h2", "h3", "h4"))
+        flags.append(el.name in HEADINGS)
     chapters = _chapters_from_blocks(blocks, flags)
     return ParsedBook(title=doc_title, author="", chapters=chapters)
 

@@ -221,6 +221,27 @@ def _memory_low(threshold_gb=2.0):
     return False
 
 
+def _is_fatal_cuda_error(msg):
+    """True if this error means the CUDA context is dead and retrying in this
+    same process is pointless.
+
+    A device-side assert (an out-of-range index inside a GPU kernel) poisons the
+    CUDA context: every later CUDA call in the process fails too, no matter how
+    much memory is freed. It must be handled by restarting the process, not by
+    retrying in place — unlike an out-of-memory error, which a retry genuinely
+    can fix. Telling the two apart stops us wasting a retry and, worse, giving
+    "close other apps to free RAM" advice for a problem that has nothing to do
+    with RAM.
+    """
+    m = (msg or "").lower()
+    return ("device-side assert" in m
+            or "cuda error" in m
+            or "cudaerrorassert" in m
+            or "an illegal memory access" in m
+            or "unspecified launch failure" in m
+            or "cuda kernel errors" in m)
+
+
 def _reclaim_memory():
     """Release memory back to the OS between chapters. Runs Python GC, clears
     the CUDA cache if a GPU is in use, and (on Linux/glibc) trims the malloc
@@ -1054,6 +1075,28 @@ def _orchestrate_recycled_narration(job_id, jd, total_ch, worker_params, batch,
                 return {"error": msg}
             continue                               # progress made; next batch
         # Any other exit code: an error stopped this batch.
+        # A fatal CUDA error (device-side assert) kills that worker's CUDA
+        # context — but the worker is a SEPARATE process, so the next one starts
+        # with a clean context. If the batch made progress, just carry on: this
+        # is the one case where process recycling can recover automatically from
+        # an otherwise unrecoverable GPU error.
+        if worker_error and _is_fatal_cuda_error(worker_error):
+            done_after = len(_bindable_chapters(job_id))
+            if done_after > done_before:
+                yield _sse({"type": "loading",
+                            "message": "A GPU error ended that batch early. "
+                                       "Starting a fresh process with a clean "
+                                       "GPU context and continuing…"})
+                continue
+            # No progress: the very first chapter of the batch fails every time,
+            # so retrying would loop forever. Stop with an honest explanation.
+            msg = ("Narration hit a GPU error it couldn't get past "
+                   f"({worker_error}). Your finished chapters are saved. This "
+                   "usually means one chapter's text upsets the model — try "
+                   "Resume; if it stops on the same chapter again, that "
+                   "chapter is the culprit.")
+            yield _sse({"type": "error", "message": msg})
+            return {"error": msg}
         if not worker_error:
             tail = ""
             try:
@@ -1455,9 +1498,12 @@ def synthesize(job_id):
 
             yield from _narrate_once()
 
-            # If narration failed (e.g. a transient "bad allocation" memory
-            # error), free memory and retry ONCE before giving up on it.
-            if state["err"]:
+            # If narration failed, retry ONCE — but only for errors a retry can
+            # actually fix (e.g. a transient "bad allocation" memory error). A
+            # CUDA device-side assert kills the whole CUDA context, so every
+            # further GPU call in this process fails too: retrying just burns
+            # time and produces a second identical error.
+            if state["err"] and not _is_fatal_cuda_error(state["err"]):
                 yield _sse({"type": "loading",
                             "message": f"Chapter {i+1} hit a problem "
                                        f"({state['err']}). Freeing memory and "
@@ -1469,13 +1515,14 @@ def synthesize(job_id):
                 yield from _narrate_once()
 
             if state["err"]:
-                # Still failed after a retry. HALT the run here rather than
-                # advancing past it. Advancing tends to cascade — the same memory
-                # pressure that broke this chapter usually breaks the next ones
-                # too, producing a string of truncated chapters. Stopping lets
-                # memory fully clear; you then Resume (fresh, low memory) and it
-                # re-narrates this chapter and continues. The broken stub is
-                # removed so it isn't mistaken for a finished chapter.
+                # Failed (after a retry, unless the error was unrecoverable).
+                # HALT here rather than advancing past it. Advancing tends to
+                # cascade — the same memory pressure that broke this chapter
+                # usually breaks the next ones too, producing a string of
+                # truncated chapters. Stopping lets memory fully clear; you then
+                # Resume (fresh, low memory) and it re-narrates this chapter and
+                # continues. The broken stub is removed so it isn't mistaken for
+                # a finished chapter.
                 for ext in (".wav", ".mp3"):
                     stub = os.path.splitext(out)[0] + ext
                     if os.path.exists(stub):
@@ -1484,16 +1531,27 @@ def synthesize(job_id):
                         except OSError:
                             pass
                 failed_chapters.append(i + 1)
-                _log_book_error(jd, f"Chapter {i+1} ({ch['title']}) failed after "
-                                    f"retry: {state['err']}. Run HALTED so memory "
-                                    f"can clear; resume to continue from here.")
-                yield _sse({"type": "error",
-                            "message": f"Chapter {i+1} ({ch['title']}) failed to "
-                                       f"narrate ({state['err']}). Stopped here so "
-                                       f"memory can clear — chapters up to "
-                                       f"{i} are saved. Close other apps to free "
-                                       f"RAM, then click Resume to continue from "
-                                       f"chapter {i+1}."})
+                fatal_cuda = _is_fatal_cuda_error(state["err"])
+                _log_book_error(jd, f"Chapter {i+1} ({ch['title']}) failed: "
+                                    f"{state['err']}. Run HALTED"
+                                    + (" (CUDA context lost — restart required)"
+                                       if fatal_cuda else
+                                       "; resume to continue from here."))
+                if fatal_cuda:
+                    msg = (f"Chapter {i+1} ({ch['title']}) hit a GPU error that "
+                           f"ends this run: the CUDA context can't recover, so "
+                           f"narration has to restart. Your finished chapters "
+                           f"are saved. Please STOP Parroty and start it again, "
+                           f"then click Resume to continue from chapter {i+1}. "
+                           f"(This isn't a RAM problem — freeing memory won't "
+                           f"help.)")
+                else:
+                    msg = (f"Chapter {i+1} ({ch['title']}) failed to narrate "
+                           f"({state['err']}). Stopped here so memory can "
+                           f"clear — chapters up to {i} are saved. Close other "
+                           f"apps to free RAM, then click Resume to continue "
+                           f"from chapter {i+1}.")
+                yield _sse({"type": "error", "message": msg})
                 return
 
             done_size += sizes[i]
@@ -1978,6 +2036,79 @@ def recover(job_id):
                              "X-Accel-Buffering": "no"})
 
 
+def _undouble_text(text):
+    """If a chapter's text is exactly its content twice over, return the single
+    copy. Otherwise return the text unchanged.
+
+    An older parser bug emitted every block twice (a container element and its
+    children each contributed the same words), so chapters got narrated twice.
+    Runs created before that fix have the doubled text baked into their saved
+    meta.json, so resuming them would keep reading everything twice. This
+    detects that exact shape and repairs it.
+
+    Deliberately conservative: it only strips when the two halves match after
+    whitespace normalisation, so a book that legitimately repeats a passage
+    (a refrain, a quoted epigraph) is left alone.
+    """
+    t = (text or "").strip()
+    if len(t) < 80:            # too short to judge safely
+        return text
+    norm = re.sub(r"\s+", " ", t)
+    n = len(norm)
+    if n % 2:
+        # Odd length: the split point falls between the halves' separator.
+        # Try both roundings before giving up.
+        candidates = (n // 2, n // 2 + 1)
+    else:
+        candidates = (n // 2,)
+    for half in candidates:
+        a, b = norm[:half].strip(), norm[half:].strip()
+        if a and a == b:
+            # The halves match. Now cut the RAW text (not the normalised copy)
+            # so paragraph breaks survive — they affect narration pacing. Walk
+            # the raw text accumulating non-space characters until we've seen as
+            # many as the first half contains; that's the true split point.
+            target = len(re.sub(r"\s+", "", a))
+            seen = 0
+            for i, chpos in enumerate(t):
+                if not chpos.isspace():
+                    seen += 1
+                if seen == target:
+                    first = t[:i + 1].strip()
+                    # Only trust the cut if the remainder really is the same
+                    # text again (guards against an unlucky match).
+                    rest = t[i + 1:].strip()
+                    if (re.sub(r"\s+", " ", first) ==
+                            re.sub(r"\s+", " ", rest)):
+                        return first
+                    break
+            return a
+    return text
+
+
+def _repair_doubled_chapters(chapters):
+    """De-duplicate any chapter whose text was doubled by the old parser bug.
+
+    Returns (fixed_count, cid_remap) where cid_remap maps each repaired
+    chapter's OLD cid -> its NEW cid. The remap matters: a chapter's identity is
+    a hash of its text, so repairing the text changes the cid. Without carrying
+    the old cid across, every already-narrated chapter would look unnarrated and
+    the whole book would be re-recorded.
+    """
+    fixed = 0
+    remap = {}
+    for c in chapters:
+        original = c.get("text") or ""
+        repaired = _undouble_text(original)
+        if repaired and repaired != original:
+            old_cid = c.get("cid") or _chapter_cid(original)
+            c["text"] = repaired
+            c["cid"] = _chapter_cid(repaired)
+            remap[old_cid] = c["cid"]
+            fixed += 1
+    return fixed, remap
+
+
 @app.route("/restore/<job_id>", methods=["POST"])
 def restore(job_id):
     """Load a previous run's chapters back into memory from its meta.json so it
@@ -2009,6 +2140,29 @@ def restore(job_id):
     # Give every chapter its stable identity (older runs predate cids) so resume
     # can recognise what's already narrated regardless of position.
     _ensure_cids(PROJECTS[job_id]["chapters"])
+
+    # Runs created before the parser fix have every chapter's text saved TWICE,
+    # so resuming them would narrate everything twice over. Repair the saved
+    # text here, and carry the ledger across to the new cids so the chapters
+    # already on disk still count as done (repairing the text changes the cid).
+    repaired, remap = _repair_doubled_chapters(PROJECTS[job_id]["chapters"])
+    if repaired:
+        ledger = _load_ledger(jd)
+        if ledger:
+            for old_cid, new_cid in remap.items():
+                if old_cid in ledger and new_cid not in ledger:
+                    ledger[new_cid] = ledger[old_cid]
+            _save_ledger(jd, ledger)
+        # Persist the repaired text so the job stays fixed from now on.
+        try:
+            meta["chapters"] = PROJECTS[job_id]["chapters"]
+            meta["chapter_titles"] = [c.get("title") for c
+                                      in PROJECTS[job_id]["chapters"]]
+            with open(meta_path, "w", encoding="utf-8") as mf:
+                json.dump(meta, mf, ensure_ascii=False)
+        except Exception:
+            pass
+
     # Build/refresh the ledger from whatever files are already on disk.
     _migrate_ledger(jd, PROJECTS[job_id]["chapters"])
     # If the run saved its voice settings, restore the speaker reference too so
@@ -2031,6 +2185,7 @@ def restore(job_id):
     done = len(_bindable_chapters(job_id))
     return jsonify({"ok": True, "job_id": job_id, "title": meta.get("title"),
                     "total_chapters": len(chapters), "already_done": done,
+                    "repaired_chapters": repaired,
                     "voice_settings": vs})
 
 

@@ -15,10 +15,16 @@ fine without them.
   BEFORE YOU START
 ------------------------------------------------------------------------
 
-You need these one-time, machine-wide installs first:
+All you need is the Parroty project folder, unzipped somewhere on your PC.
+
+Parroty also needs Python 3.12 and ffmpeg installed on the machine. You can
+either install those yourself:
   - Python 3.12     https://www.python.org/downloads/  (tick "Add to PATH")
   - ffmpeg          (see the README "Install ffmpeg" section)
-  - The Parroty project folder, unzipped somewhere on your PC.
+
+...or just create install_all.bat below, which installs BOTH for you (via
+winget) along with everything else. If you want the simplest possible path,
+make install_all.bat and run.bat and skip the rest of this guide.
 
 Create the .bat files INSIDE the Parroty folder - the same folder that
 contains the "app" folder and requirements.txt.
@@ -40,18 +46,28 @@ contains the "app" folder and requirements.txt.
 
 
 ------------------------------------------------------------------------
-  THE TWO YOU ACTUALLY NEED
+  THE ONES YOU ACTUALLY NEED
 ------------------------------------------------------------------------
 
-  setup.bat       - run ONCE to install everything.
+EASIEST - two files, nothing else:
+
+  install_all.bat - run ONCE. Installs Python, ffmpeg, the virtual
+                    environment, every Python package, Chatterbox and GPU
+                    PyTorch. Then offers to start Parroty for you.
   run.bat         - run EVERY time you want to start Parroty.
-  run_hidden.bat  - optional: start Parroty with NO window at all (full GPU
-                    speed, nothing to keep in the foreground). Use instead of
-                    run.bat. Run it AFTER setup.bat, not instead of setup.
+
+If you'd rather install Python and ffmpeg yourself, use setup.bat instead
+of install_all.bat - it does the same thing minus those two prerequisites.
+(You don't need both: install_all.bat is a superset of setup.bat.)
+
+  setup.bat       - alternative to install_all.bat, assumes Python +
+                    ffmpeg are already installed.
+  run_hidden.bat  - optional: start Parroty with NO window at all. Use
+                    instead of run.bat, AFTER installing.
 
 Once they are created:
-  - Double-click setup.bat and wait for it to finish (it downloads a lot
-    the first time, including the GPU build of PyTorch).
+  - Double-click install_all.bat and wait for it to finish (it downloads a
+    lot the first time, including the ~2.5 GB GPU build of PyTorch).
   - Then double-click run.bat. Chrome opens automatically at
     http://127.0.0.1:5000.
   - You can minimize the run.bat window; Parroty opts out of Windows
@@ -62,7 +78,240 @@ Once they are created:
 
 
 ========================================================================
-  FILE:  setup.bat        (run once - installs everything)
+  FILE:  install_all.bat   (run once - installs EVERYTHING)
+========================================================================
+
+This is the recommended one. It installs Python and ffmpeg for you
+(via winget), then the venv, all packages, Chatterbox and GPU PyTorch.
+Safe to re-run - it skips whatever is already installed.
+
+@echo off
+setlocal EnableDelayedExpansion
+REM ============================================================
+REM  Parroty - INSTALL EVERYTHING (one file does it all)
+REM
+REM  Double-click this ONCE on a fresh Windows machine. It:
+REM    1. Installs Python 3.12    (via winget, if missing)
+REM    2. Installs ffmpeg         (via winget, if missing)
+REM    3. Creates the virtual environment
+REM    4. Installs all Python packages
+REM    5. Installs Chatterbox + PyTorch with CUDA GPU support
+REM    6. Verifies the install and offers to start Parroty
+REM
+REM  Safe to re-run: it skips anything already installed.
+REM  This is a superset of setup.bat - you don't need both.
+REM ============================================================
+
+cd /d "%~dp0"
+title Parroty - Install Everything
+
+echo.
+echo  ============================================================
+echo   PARROTY - INSTALL EVERYTHING
+echo  ============================================================
+echo   This installs Python, ffmpeg, and all Parroty packages.
+echo   Total download can be ~3-4 GB (mostly the GPU PyTorch).
+echo   You only need to run this once.
+echo  ============================================================
+echo.
+
+REM ---------- 0. Allow local scripts (for manual venv activation later) ----
+powershell -NoProfile -Command "Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force" >nul 2>nul
+
+REM ---------- 0b. Is winget available? (Win10 1809+ / Win11 have it) -------
+set "HAVE_WINGET="
+where winget >nul 2>nul && set "HAVE_WINGET=1"
+if not defined HAVE_WINGET (
+    echo  [!] winget not found - cannot auto-install Python/ffmpeg.
+    echo      Windows 11 and recent Windows 10 include it via "App Installer".
+    echo      This script will still set up everything else, but you must
+    echo      install any missing prerequisites manually:
+    echo        Python 3.12 : https://www.python.org/downloads/
+    echo        ffmpeg      : https://www.gyan.dev/ffmpeg/builds/
+    echo.
+)
+
+REM =========================================================================
+echo  [1/6] Checking Python...
+REM =========================================================================
+set "PYLAUNCH="
+py -3.12 --version >nul 2>nul && set "PYLAUNCH=py -3.12"
+if not defined PYLAUNCH (
+    py -3 --version >nul 2>nul && set "PYLAUNCH=py -3"
+)
+if not defined PYLAUNCH (
+    python --version >nul 2>nul && set "PYLAUNCH=python"
+)
+
+if not defined PYLAUNCH (
+    if defined HAVE_WINGET (
+        echo      Python not found - installing Python 3.12 via winget...
+        winget install -e --id Python.Python.3.12 --scope machine --accept-package-agreements --accept-source-agreements
+        REM winget updates PATH for NEW processes; refresh ours so we can use it now.
+        call :refresh_path
+        py -3.12 --version >nul 2>nul && set "PYLAUNCH=py -3.12"
+        if not defined PYLAUNCH (
+            python --version >nul 2>nul && set "PYLAUNCH=python"
+        )
+        if not defined PYLAUNCH (
+            echo.
+            echo  [X] Python was installed but this window can't see it yet.
+            echo      CLOSE this window and run install_all.bat again - it will
+            echo      pick up from here. ^(Windows needs a fresh window for the
+            echo      updated PATH.^)
+            echo.
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo  [X] Python 3.12 is required. Install it, then re-run this file:
+        echo      https://www.python.org/downloads/
+        echo      IMPORTANT: tick "Add python.exe to PATH" in the installer.
+        echo.
+        pause
+        exit /b 1
+    )
+)
+for /f "delims=" %%v in ('%PYLAUNCH% --version 2^>^&1') do echo      Found: %%v
+echo.
+
+REM =========================================================================
+echo  [2/6] Checking ffmpeg...
+REM =========================================================================
+where ffmpeg >nul 2>nul
+if %errorlevel%==0 (
+    echo      Found: ffmpeg already installed.
+) else (
+    if defined HAVE_WINGET (
+        echo      ffmpeg not found - installing via winget...
+        winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+        call :refresh_path
+        where ffmpeg >nul 2>nul
+        if !errorlevel!==0 (
+            echo      Installed: ffmpeg.
+        ) else (
+            echo.
+            echo      [!] ffmpeg installed but not visible in this window yet.
+            echo          Parroty needs it to combine audio and build MP4s.
+            echo          After this finishes, CLOSE this window and open a new
+            echo          one - ffmpeg will be on PATH then.
+        )
+    ) else (
+        echo      [!] ffmpeg missing and winget unavailable. Install it from
+        echo          https://www.gyan.dev/ffmpeg/builds/ and add it to PATH.
+        echo          ^(Narration works without it, but combining audio and
+        echo           building the MP4 will fail.^)
+    )
+)
+echo.
+
+REM =========================================================================
+echo  [3/6] Creating the virtual environment...
+REM =========================================================================
+if exist "venv\Scripts\python.exe" (
+    echo      Virtual environment already exists - reusing it.
+) else (
+    %PYLAUNCH% -m venv venv
+    if !errorlevel! neq 0 (
+        echo.
+        echo  [X] Could not create the virtual environment.
+        echo.
+        pause
+        exit /b 1
+    )
+    echo      Created: venv
+)
+set "VPY=venv\Scripts\python.exe"
+echo.
+
+REM =========================================================================
+echo  [4/6] Installing Parroty's Python packages...
+REM =========================================================================
+"%VPY%" -m pip install --upgrade pip --quiet
+"%VPY%" -m pip install -r requirements.txt
+if !errorlevel! neq 0 (
+    echo.
+    echo  [X] Core requirements failed to install. Scroll up for the reason.
+    echo.
+    pause
+    exit /b 1
+)
+echo      Core packages installed.
+echo.
+
+REM =========================================================================
+echo  [5/6] Installing the local voice engine + GPU PyTorch...
+REM       (Chatterbox FIRST so its torch dependency lands, then we force the
+REM        CUDA build over the top - otherwise pip can leave you on CPU torch.)
+REM =========================================================================
+echo      Installing Chatterbox ^(local voice cloning^)...
+"%VPY%" -m pip install chatterbox-tts
+
+echo.
+echo      Installing PyTorch with CUDA 12.8 GPU support...
+echo      ^(Large download ~2.5 GB - this is the slow part.^)
+"%VPY%" -m pip install --force-reinstall --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+if !errorlevel! neq 0 (
+    echo.
+    echo      CUDA 12.8 build failed - trying CUDA 12.4...
+    "%VPY%" -m pip install --force-reinstall --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+    if !errorlevel! neq 0 (
+        echo.
+        echo      GPU builds unavailable - falling back to CPU-only PyTorch.
+        echo      ^(Narration will work but be much slower.^)
+        "%VPY%" -m pip install torch torchaudio
+    )
+)
+echo.
+
+REM =========================================================================
+echo  [6/6] Verifying the install...
+REM =========================================================================
+echo.
+"%VPY%" -c "import flask, ebooklib, bs4, pydub; print('  Core packages : OK')" 2>nul || echo   Core packages : FAILED
+"%VPY%" -c "import chatterbox; print('  Chatterbox    : OK')" 2>nul || echo   Chatterbox    : not installed (cloud voices still work)
+"%VPY%" -c "import torch; ok=torch.cuda.is_available(); print('  PyTorch       :', torch.__version__); print('  GPU available :', ok); print('  GPU           :', torch.cuda.get_device_name(0) if ok else '(CPU only - narration will be slow)')" 2>nul || echo   PyTorch       : FAILED
+where ffmpeg >nul 2>nul && echo   ffmpeg        : OK || echo   ffmpeg        : NOT on PATH (open a new window, or install it)
+echo.
+
+echo  ============================================================
+echo   INSTALL COMPLETE
+echo  ============================================================
+echo   If "GPU available" says True, you're set for fast narration.
+echo   If it says False but you have an NVIDIA card, run fix_gpu.bat.
+echo.
+echo   From now on, just double-click run.bat to start Parroty.
+echo  ============================================================
+echo.
+
+choice /C YN /N /M "  Start Parroty now? [Y/N] "
+if errorlevel 2 goto :finish
+if errorlevel 1 (
+    echo.
+    echo   Starting Parroty...
+    call run.bat
+    exit /b 0
+)
+
+:finish
+echo.
+echo   Done. Double-click run.bat whenever you want to start Parroty.
+echo.
+pause
+exit /b 0
+
+REM =========================================================================
+:refresh_path
+REM Re-read PATH from the registry so tools winget just installed are usable
+REM in THIS window (winget only updates PATH for newly-created processes).
+for /f "usebackq tokens=2,*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul`) do set "SYSPATH=%%B"
+for /f "usebackq tokens=2,*" %%A in (`reg query "HKCU\Environment" /v Path 2^>nul`) do set "USRPATH=%%B"
+set "PATH=%SYSPATH%;%USRPATH%"
+exit /b 0
+
+
+========================================================================
+  FILE:  setup.bat        (alternative: assumes Python + ffmpeg)
 ========================================================================
 
 @echo off

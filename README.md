@@ -14,7 +14,6 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 - [What it does](#what-it-does)
 - [Voice engines](#voice-engines)
 - [Requirements & disk space](#requirements--disk-space)
-- [Tested on](#tested-on)
 - [Install and run](#install-and-run)
 - [Setup from scratch (Python only)](#setup-from-scratch-python-only)
 - [Running and stopping](#running-and-stopping)
@@ -145,6 +144,10 @@ WARNING: Only clone voices you own or have explicit permission to use.
 > a TTS model, so it needs some room and (ideally) a CUDA GPU. The cloud voices
 > (OpenAI / ElevenLabs) need almost no disk and no GPU.
 
+**Tested on:** Windows 11, **NVIDIA RTX 5060 Laptop GPU (8 GB VRAM)**,
+PyTorch + CUDA 12.8, Python 3.12. It's a solo‑developer project built and run on
+that exact setup — other configurations should work but haven't been exercised.
+
 | Need | Detail |
 |------|--------|
 | OS | Windows 10/11 for the `.bat` launchers; macOS/Linux work from the command line |
@@ -164,26 +167,6 @@ WARNING: Only clone voices you own or have explicit permission to use.
 The Chatterbox model is downloaded once and cached in your Hugging Face cache
 (`%USERPROFILE%\.cache\huggingface`). If you only use the cloud voices, you can
 skip the local engine entirely and the footprint is tiny.
-
-## Tested on
-
-Parroty is a solo-developer project, built and run on a single Windows laptop.
-Other setups should work — any CUDA NVIDIA GPU, CPU-only, or Apple Silicon for
-the local engine, and macOS/Linux for the cloud voices — but the specs below are
-the exact machine it has been verified on.
-
-| Component | Tested spec |
-|-----------|-------------|
-| GPU | NVIDIA GeForce RTX 5060 Laptop GPU — 8 GB VRAM |
-| System RAM | 16 GB |
-| CPU | _add your CPU here_ |
-| OS | Windows 11 |
-| Python | 3.12 |
-| PyTorch | CUDA 12.8 (`cu128`) build |
-| ffmpeg | latest stable |
-
-The 8 GB VRAM / 16 GB RAM pairing is exactly why low-memory mode and process
-recycling exist — see [Memory use on 16 GB machines](#memory-use-on-16-gb-machines).
 
 ## Install and run
 
@@ -206,6 +189,13 @@ python -m app.server
 ```
 
 Chrome opens automatically at `http://127.0.0.1:5000`. Press **Ctrl+C** to stop.
+
+> **Prefer to double-click instead of typing commands?** See
+> **`Quick Start Readme.txt`** in this folder. It walks you through creating a
+> few optional Windows launcher files — including an `install_all.bat` that
+> installs *everything* (Python, ffmpeg, the environment, all packages, and GPU
+> PyTorch) in one double-click, and a `run.bat` to start Parroty. They're
+> optional; the commands above do the same job.
 
 > **First-run PowerShell note.** If the `.\venv\Scripts\Activate.ps1` line gives
 > *"running scripts is disabled on this system"*, run this **once** (per machine),
