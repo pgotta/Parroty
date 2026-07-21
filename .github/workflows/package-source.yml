@@ -3,6 +3,8 @@ name: Package Parroty Source
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,7 +18,7 @@ jobs:
       - name: Build clean full-project ZIP
         run: |
           mkdir -p staging/Parroty
-          rsync -a --exclude='.git/' --exclude='.github/workflows/package-source.yml' --exclude='staging/' ./ staging/Parroty/
+          rsync -a --exclude='.git/' --exclude='.github/workflows/package-source.yml' --exclude='staging/' --exclude='.package-trigger' ./ staging/Parroty/
           cd staging
           zip -qr ../Parroty-full-latest.zip Parroty
       - name: Upload source ZIP
