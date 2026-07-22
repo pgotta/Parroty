@@ -18,13 +18,13 @@ jobs:
       - name: Build clean full-project ZIP
         run: |
           mkdir -p staging/Parroty
-          rsync -a --exclude='.git/' --exclude='.github/workflows/package-source-temp.yml' --exclude='staging/' ./ staging/Parroty/
+          rsync -a --exclude='.git/' --exclude='.github/workflows/package-source-temp.yml' --exclude='.github/package-trigger.txt' --exclude='.github/package-trigger-branch.txt' --exclude='staging/' ./ staging/Parroty/
           cd staging
           zip -qr ../Parroty-full.zip Parroty
       - name: Upload source ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Parroty-full
+          name: Parroty-full-clean
           path: Parroty-full.zip
           if-no-files-found: error
           retention-days: 1
