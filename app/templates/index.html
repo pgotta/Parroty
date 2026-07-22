@@ -12,6 +12,24 @@
 <body>
 <div class="grain"></div>
 
+<aside class="system-monitor" id="systemMonitor" aria-label="System monitor">
+  <div class="system-monitor-head">
+    <span class="system-live-dot"></span>
+    <div><strong>Local backend</strong><small>127.0.0.1 : 5000</small></div>
+  </div>
+  <div class="system-row">
+    <span class="system-label">GPU</span>
+    <span class="system-bar"><i id="systemGpuBar"></i></span>
+    <span class="system-value" id="systemGpuText">checking…</span>
+  </div>
+  <div class="system-row">
+    <span class="system-label">CPU</span>
+    <span class="system-bar"><i id="systemCpuBar"></i></span>
+    <span class="system-value" id="systemCpuText">—%</span>
+  </div>
+  <div class="system-device" id="systemGpuDevice">Detecting GPU…</div>
+</aside>
+
 <header class="masthead">
   <div class="brand">
     <svg class="parrot-mark" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-label="Parrot reading a book">

@@ -1430,3 +1430,64 @@ async function bindSelectedChapters(jobId){
   }
   btn.disabled = false; btn.textContent = "Recombine selected chapters";
 }
+
+
+/* ---- Bottom-left system monitor ---------------------------------------- */
+function setSystemBar(el, pct){
+  if (!el) return;
+  const safe = Math.max(2, Math.min(100, Number(pct) || 0));
+  el.style.width = `${safe}%`;
+  el.style.background = safe > 90
+    ? "#c85b4a"
+    : "linear-gradient(90deg, #b08642, #64b87a)";
+}
+
+async function updateSystemMonitor(){
+  const live = document.querySelector(".system-live-dot");
+  try {
+    const r = await fetch("/api/system", { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const g = await r.json();
+    live?.classList.remove("offline");
+
+    const cpuText = $("systemCpuText");
+    if (g.cpu != null){
+      if (cpuText) cpuText.textContent = `${g.cpu}%`;
+      setSystemBar($("systemCpuBar"), g.cpu);
+    } else if (cpuText) {
+      cpuText.textContent = "n/a";
+    }
+
+    const gpuText = $("systemGpuText");
+    const gpuDevice = $("systemGpuDevice");
+    if (!g.available){
+      if (gpuText) gpuText.textContent = "no CUDA GPU";
+      if (gpuDevice) gpuDevice.textContent = "CPU only";
+      setSystemBar($("systemGpuBar"), 0);
+      return;
+    }
+
+    const memPct = g.total_gb ? (g.used_gb / g.total_gb) * 100 : 0;
+    const util = g.util != null ? Number(g.util) : null;
+    if (gpuText){
+      const usage = util != null ? `${util}%  ·  ` : "";
+      gpuText.textContent = `${usage}${Number(g.used_gb || 0).toFixed(1)}/${g.total_gb} GB`;
+    }
+    setSystemBar($("systemGpuBar"), Math.max(memPct, util ?? 0));
+    if (gpuDevice){
+      const name = String(g.name || "GPU").replace("NVIDIA GeForce ", "");
+      gpuDevice.textContent = `${name}${g.cuda ? ` · CUDA ${g.cuda}` : ""}`;
+    }
+  } catch (_err) {
+    live?.classList.add("offline");
+    const gpuText = $("systemGpuText");
+    const cpuText = $("systemCpuText");
+    const gpuDevice = $("systemGpuDevice");
+    if (gpuText) gpuText.textContent = "offline";
+    if (cpuText) cpuText.textContent = "—%";
+    if (gpuDevice) gpuDevice.textContent = "Backend unavailable";
+  }
+}
+
+updateSystemMonitor();
+setInterval(updateSystemMonitor, 2000);

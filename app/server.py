@@ -361,6 +361,66 @@ def devices():
                    "fix": ""}})
 
 
+@app.route("/api/system")
+def system_status():
+    """Live CPU, GPU utilization and device-wide VRAM for the UI monitor."""
+    return jsonify(_system_info())
+
+
+def _system_info():
+    """Best-effort system stats, safe when CUDA/NVIDIA tools are unavailable.
+
+    nvidia-smi is preferred because narration may run in a recycled worker
+    process; device-wide numbers still reflect that worker even though this
+    Flask process does not own its CUDA context.
+    """
+    info = {"available": False, "cpu": None}
+    try:
+        import psutil
+        info["cpu"] = round(psutil.cpu_percent(interval=None))
+    except Exception:
+        pass
+
+    import subprocess
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        proc = subprocess.run(
+            ["nvidia-smi",
+             "--query-gpu=name,utilization.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2, creationflags=flags)
+        if proc.returncode == 0 and proc.stdout.strip():
+            row = [part.strip() for part in proc.stdout.splitlines()[0].split(",")]
+            if len(row) >= 4:
+                name, util, used_mb, total_mb = row[:4]
+                info.update({
+                    "available": True,
+                    "name": name,
+                    "util": int(float(util)),
+                    "used_gb": round(float(used_mb) / 1024, 2),
+                    "total_gb": round(float(total_mb) / 1024, 1),
+                })
+    except Exception:
+        pass
+
+    try:
+        import torch
+        info["cuda"] = torch.version.cuda
+        if not info["available"] and torch.cuda.is_available():
+            props = torch.cuda.get_device_properties(0)
+            free, total = torch.cuda.mem_get_info(0)
+            info.update({
+                "available": True,
+                "name": props.name,
+                "util": None,
+                "used_gb": round((total - free) / 1073741824, 2),
+                "total_gb": round(total / 1073741824, 1),
+            })
+    except Exception:
+        pass
+    return info
+
+
 def _log_book_error(job_dir, message):
     """Append a timestamped line to this book's own error log (errors.log in the
     job folder). Gives a per-book record of any chapter failures, truncated
@@ -2313,36 +2373,52 @@ def audio(job_id, filename):
 
 
 def _open_chrome(url):
-    """Open the app in Chrome (falls back to the default browser)."""
+    """Open Parroty as its own app-style browser window.
+
+    Chrome/Edge app mode removes tabs and the address bar, matching a desktop
+    app while the Python backend remains local and hidden. Falls back to a new
+    normal browser window when neither browser is installed.
+    """
     import sys
     import shutil
     import subprocess
     import webbrowser
 
-    # Common Chrome locations / commands per OS.
     candidates = []
     if sys.platform == "darwin":
-        candidates = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
-    elif sys.platform.startswith("win"):
         candidates = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+    elif sys.platform.startswith("win"):
+        local = os.environ.get("LOCALAPPDATA", "")
+        candidates = [
+            os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.join(local, r"Microsoft\Edge\Application\msedge.exe"),
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
         ]
-    else:  # linux
-        candidates = ["google-chrome", "google-chrome-stable", "chromium",
-                      "chromium-browser"]
+    else:
+        candidates = ["google-chrome", "google-chrome-stable",
+                      "microsoft-edge", "microsoft-edge-stable",
+                      "chromium", "chromium-browser"]
 
-    for c in candidates:
-        path = c if os.path.exists(c) else shutil.which(c)
-        if path:
-            try:
-                subprocess.Popen([path, url])
-                return
-            except Exception:
-                pass
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    for candidate in candidates:
+        path = candidate if candidate and os.path.exists(candidate) else shutil.which(candidate)
+        if not path:
+            continue
+        try:
+            subprocess.Popen(
+                [path, f"--app={url}", "--new-window", "--start-maximized"],
+                creationflags=flags)
+            return
+        except Exception:
+            pass
 
-    # Fallback: whatever the system default browser is.
-    webbrowser.open(url)
+    webbrowser.open_new(url)
 
 
 def _keep_full_speed():

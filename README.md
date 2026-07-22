@@ -54,23 +54,19 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 
 ## Known issues
 
-**GPU can throttle when Parroty isn't in the foreground.** When the Parroty
-console window loses focus or is minimized, Windows can throttle the process and
-GPU utilization drops sharply — sometimes to around 10%. Parroty already opts
-itself **and its narration workers** out of Windows' background power throttling
-(EcoQoS), raises priority, and keeps the system awake, which fixes this on most
-machines — but on some laptops it isn't always enough on its own.
+**Windows laptop GPU throttling:** the bundled **`run.bat`** now launches
+Parroty through `pythonw.exe`, so no PowerShell or console window remains to lose
+focus. Parroty opens in its own Chrome/Edge app window, while both the hidden
+server and recycled narration workers opt out of Windows background power
+throttling (EcoQoS), run at high priority, and keep the system awake. Live CPU,
+GPU utilization, and VRAM appear in the bottom-left system monitor.
 
-**Recommended workaround — run with no window at all:** start Parroty with
-**`run_hidden.bat`** instead of `run.bat`. It launches the server with
-`pythonw.exe`, so there's no console window to lose focus in the first place — the
-browser keeps focus and the GPU stays at full speed. Chrome still opens at
-http://127.0.0.1:5000 and all output is saved to `parroty.log`. Stop it with
-`stop.bat` (or end `pythonw.exe` in Task Manager).
-
-If you prefer the visible console (`run.bat`), keep that window unminimized while
-narrating, and on a laptop plug in AC power and apply the settings under
-[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed) below.
+On first launch, `run.bat` also creates a **Parroty desktop shortcut**. Later you
+can start Parroty directly from that shortcut. Use `stop.bat` to shut down the
+hidden server. If a particular laptop still applies OS-level throttling, run
+**`fix_gpu.bat` once as administrator**, then restart Parroty. Also keep the laptop
+plugged in and use the performance settings under
+[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed).
 
 ## Screenshots
 
@@ -415,12 +411,11 @@ It starts a local server and **automatically opens Chrome** to
 `http://127.0.0.1:5000` (falling back to your default browser if Chrome isn't
 installed). Press **Ctrl+C** to stop.
 
-**Hidden (no window):** double-click **`run_hidden.bat`** to start Parroty with no
-console window at all (it runs under `pythonw.exe`). Chrome still opens
-automatically and output goes to `parroty.log`; stop it with `stop.bat`. This
-sidesteps the foreground/throttling note in [Known issues](#known-issues). Run it
-**after** `setup.bat` — it's an alternative to `run.bat`, not a replacement for
-setup.
+**Normal Windows launch:** double-click **`run.bat`**. It starts the backend
+windowlessly through `pythonw.exe`, opens Parroty in a dedicated Chrome/Edge app
+window, and silently creates or refreshes a desktop shortcut. Output goes to
+`parroty.log`; stop the hidden server with `stop.bat`. `run_hidden.bat` remains as
+a backwards-compatible alias and behaves the same way.
 
 Starting again later needs no reinstall — setup is one-time. Open a terminal,
 `cd` into the Parroty folder, activate the venv, and run the server:

@@ -43,6 +43,36 @@ body {
 
 main, header, footer { position: relative; z-index: 1; }
 
+/* ---- Always-visible local system monitor ------------------------------- */
+.system-monitor {
+  position: fixed; left: 16px; bottom: 16px; z-index: 30; width: 248px;
+  padding: 13px 14px 12px; border: 1px solid rgba(236,228,214,.22);
+  border-radius: 8px; color: var(--paper);
+  background: rgba(31,27,22,.94);
+  box-shadow: 0 14px 35px rgba(31,27,22,.25);
+  backdrop-filter: blur(8px);
+  font-family: var(--sans);
+}
+.system-monitor-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.system-monitor-head > div { display: flex; flex-direction: column; line-height: 1.2; }
+.system-monitor-head strong { font-size: .74rem; letter-spacing: .03em; }
+.system-monitor-head small { color: #b9ab92; font-family: var(--mono); font-size: .62rem; margin-top: 2px; }
+.system-live-dot {
+  width: 7px; height: 7px; flex: none; border-radius: 50%; background: #64b87a;
+  box-shadow: 0 0 8px rgba(100,184,122,.9);
+}
+.system-live-dot.offline { background: #c8784f; box-shadow: 0 0 8px rgba(200,120,79,.8); }
+.system-row { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.system-label { width: 25px; flex: none; color: #b9ab92; font-family: var(--mono); font-size: .62rem; }
+.system-bar { flex: 1; height: 5px; overflow: hidden; border-radius: 3px; background: rgba(236,228,214,.10); }
+.system-bar i {
+  display: block; width: 2%; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #b08642, #64b87a); transition: width .35s ease;
+}
+.system-value { min-width: 80px; text-align: right; color: var(--paper); font-family: var(--mono); font-size: .61rem; }
+.system-device { margin-top: 8px; color: #b9ab92; font-family: var(--mono); font-size: .59rem; line-height: 1.3; }
+
+
 /* ---- Masthead ---------------------------------------------------------- */
 .masthead {
   max-width: 760px;
@@ -395,6 +425,8 @@ footer {
 @media (max-width: 560px) {
   .engine-grid { grid-template-columns: 1fr; }
   .masthead { padding-top: 48px; }
+  .system-monitor { left: 8px; bottom: 8px; width: 218px; padding: 10px 11px; }
+  .system-value { min-width: 70px; }
 }
 
 /* Chapter selection (choose which chapters to bind) */
