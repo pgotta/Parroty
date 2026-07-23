@@ -643,12 +643,14 @@ commands.
     `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then retry.
 - **"No module named 'torch'" or "No module named 'chatterbox'"** when you click
   Narrate or Preview — these packages aren't installed in the venv that's running
-  Parroty. Activate your venv, run `pip install chatterbox-tts`, then
-  `pip install --force-reinstall torch torchaudio --index-url
-  https://download.pytorch.org/whl/cu128` (torch last so it isn't replaced by a
-  CPU build). Confirm with `python -c "import chatterbox, torch"` before retrying.
-- **Built-in voices need no key** — the bundled male/female voices run fully
-  offline. If you want to preview or use them, just pick one and click Preview.
+  Parroty. Install the CUDA build first with `venv\Scripts\python.exe -m pip
+  install --upgrade --force-reinstall torch==2.11.0 torchaudio==2.11.0
+  --index-url https://download.pytorch.org/whl/cu128`, then run
+  `venv\Scripts\python.exe tools\install_chatterbox_compat.py`. Confirm with
+  `venv\Scripts\python.exe -c "import chatterbox, torch"` before retrying.
+- **Built-in voices need no key** — all eight bundled audiobook voices run
+  fully offline. Pick any voice and click Preview; a custom uploaded sample still
+  overrides the selected built-in voice for that project.
 - **Port 5000 already in use** — change the port at the bottom of
   `app/server.py` (`port=5000`) to e.g. `5001`.
 
