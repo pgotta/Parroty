@@ -1,0 +1,54 @@
+name: Apply repository cleanup
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/apply_repo_cleanup.py
+      - .github/workflows/apply-repo-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply documentation and BAT cleanup
+        run: python tools/apply_repo_cleanup.py
+      - name: Verify repository policy
+        shell: bash
+        run: |
+          test -z "$(git ls-files '*.bat')"
+          grep -q '^\*.bat$' .gitignore
+          ! grep -qi 'loses focus' README.md
+          ! grep -qi 'keep the Parroty console' README.md
+          ! grep -qi 'fix_gpu\.bat' README.md
+          python -m py_compile app/tts.py launch_parroty.pyw
+          python - <<'PY'
+          from app.tts import ENGINE_CATALOG
+          voices = ENGINE_CATALOG['chatterbox']['builtin_voices']
+          assert len(voices) == 8, voices
+          print(list(voices))
+          PY
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update documentation and enforce BAT exclusion"
+            git push origin HEAD:main
+          fi
