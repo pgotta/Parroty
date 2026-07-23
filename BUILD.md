@@ -22,7 +22,8 @@ The ZIP root should contain the project files directly. Do not wrap them inside
 an extra nested `Parroty` directory.
 
 Required source/runtime files include `app/`, `tools/`, `requirements.txt`, the
-tracked launcher helpers, `parroty.ico`, documentation, and `LICENSE`.
+tracked launcher helpers, `parroty.ico`, `app/static/parroty.ico`, documentation,
+and `LICENSE`.
 
 The voice package must include all eight `builtin_*.wav` files and
 `app/assets/voices/ATTRIBUTION.md`.
@@ -57,11 +58,13 @@ py -3.12 -m py_compile launch_parroty.pyw app/server.py app/tts.py app/narrate_w
 py -3.12 -c "from app.tts import ENGINE_CATALOG; v=ENGINE_CATALOG['chatterbox']['builtin_voices']; assert len(v)==8; print(list(v))"
 ```
 
-After installation, verify the monitor identifies CUDA/NVIDIA, the app opens in
-a dedicated maximized window without a visible console, and closing that app
-window with X stops the Flask listener and releases port 5000. Also verify the
-desktop shortcut uses `parroty.ico`, all eight voices appear, previews work, and
-`stop.bat` still shuts down port 5000 as a fallback.
+After installation, verify the monitor identifies CUDA/NVIDIA and the app opens in
+a dedicated maximized window without a visible console. Confirm the desktop
+shortcut, native app window, and taskbar button all use `parroty.ico`. Start a
+short narration, close the app window with X, and verify the Flask listener and
+every `app.narrate_worker` process exit. Also verify the generated `stop.bat` can
+find and stop Parroty workers even when port 5000 is no longer listening. Finally,
+confirm all eight voices appear and previews work.
 
 Before publishing, review `README.md`, `Quick Start Readme.txt`, `BUILD.md`,
 `RELEASE_NOTES.md`, and the voice attribution. No version bump or GitHub Release

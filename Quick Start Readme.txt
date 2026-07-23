@@ -16,8 +16,9 @@ launch_parroty.pyw, and the app folder:
 5. Save with the exact .bat filename shown.
 
 The eight bundled Chatterbox voices already live under app\assets\voices.
-No API key or separate voice download is required. Closing the dedicated
-Parroty Chrome/Edge app window with X automatically stops the hidden backend.
+No API key or separate voice download is required. The dedicated Parroty
+Chrome/Edge app window uses the bird icon in its title bar and taskbar. Closing
+it with X stops Flask and any active narration workers.
 
 ========================================================================
   FILE: install_all.bat
@@ -98,13 +99,27 @@ exit /b 0
 ========================================================================
 
 @echo off
-setlocal enabledelayedexpansion
-set "FOUND=0"
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5000" ^| findstr LISTENING') do (
-  taskkill /F /PID %%P >nul 2>&1
-  set "FOUND=1"
-)
-if "!FOUND!"=="0" (echo Parroty was not running.) else (echo Parroty stopped.)
+setlocal
+cd /d "%~dp0"
+title Stop Parroty
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$root=[IO.Path]::GetFullPath('%CD%');" ^
+  "$targets=New-Object 'System.Collections.Generic.HashSet[int]';" ^
+  "try { Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction Stop | ForEach-Object { if ($_.OwningProcess -gt 0) { [void]$targets.Add([int]$_.OwningProcess) } } } catch {};" ^
+  "Get-CimInstance Win32_Process | Where-Object {" ^
+  "  $_.Name -match '^pythonw?\.exe$' -and $_.CommandLine -and (" ^
+  "    ($_.CommandLine -like ('*' + $root + '*launch_parroty.pyw*')) -or" ^
+  "    ($_.CommandLine -like ('*' + $root + '*-m app.narrate_worker*')) -or" ^
+  "    ($_.CommandLine -like ('*' + $root + '*-m app.server*'))" ^
+  "  )" ^
+  "} | ForEach-Object { [void]$targets.Add([int]$_.ProcessId) };" ^
+  "if ($targets.Count -eq 0) { Write-Host 'Parroty was not running.'; exit 0 };" ^
+  "$ordered=@($targets) | Sort-Object -Descending;" ^
+  "foreach ($id in $ordered) { & taskkill.exe /PID $id /T /F 2>$null | Out-Null };" ^
+  "Remove-Item -LiteralPath (Join-Path $root '.parroty.browser.pid') -Force -ErrorAction SilentlyContinue;" ^
+  "Write-Host 'Parroty stopped, including active narration workers.'"
+
 timeout /t 2 >nul
 exit /b 0
 
@@ -141,8 +156,8 @@ exit /b 0
 
 1. Run install_all.bat once.
 2. Start Parroty with run.bat or the desktop shortcut.
-3. Close the Parroty app window with X to stop the hidden backend automatically.
-4. Use stop.bat only if the window is already gone or a forced stop is needed.
+3. Close the Parroty app window with X to stop Flask and active narration workers.
+4. Use stop.bat if the window is already gone or a forced full stop is needed.
 5. Use run_debug.bat only for troubleshooting.
 
 Do not commit the generated BAT files. They are local/package conveniences.

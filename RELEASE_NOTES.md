@@ -12,11 +12,13 @@ No version number is assigned to this update.
 - Added the bottom-left CPU/GPU/VRAM system monitor.
 - Added hidden background launching with persistent `parroty.log` diagnostics.
 - Added a dedicated maximized Chrome/Edge app window using its own browser profile.
-- Closing the dedicated Parroty app window now automatically stops the hidden
-  Flask backend, matching `stop.bat` behavior without affecting normal browser windows.
-- Corrected that shutdown detection to monitor the exact native Parroty window
-  handle rather than waiting for the Chromium process, which may remain alive
-  after its app window is closed.
+- Closing the dedicated Parroty app window now monitors the exact native window
+  handle and terminates the complete Parroty process tree, including active
+  `app.narrate_worker` children that Windows would otherwise leave orphaned.
+- Updated the local `stop.bat` template to detect both the port-5000 listener and
+  Parroty launcher/server/narration workers, preventing false “not running” reports.
+- Added the Parroty bird favicon and applies `parroty.ico` directly to the native
+  Chrome/Edge app window so the title bar and Windows taskbar show the app icon.
 - Added desktop-shortcut creation using the Parroty icon.
 - Corrected hidden-launch template/static resolution.
 - Kept narration workers GPU-enabled when the app window is hidden or inactive.
