@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-close-shutdown:
@@ -13,6 +13,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: stop-backend-on-window-close
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -95,4 +98,20 @@ jobs:
           $ignore = Get-Content .gitignore -Raw
           if ($ignore -notmatch '(?m)^\*\.bat\s*$') {
             throw ".gitignore does not block *.bat"
+          }
+
+      - name: Update documentation
+        run: python tools/apply_window_close_docs.py
+
+      - name: Commit documentation
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md "Quick Start Readme.txt" BUILD.md RELEASE_NOTES.md
+          if (git diff --cached --quiet) {
+            Write-Host "Documentation already current."
+          } else {
+            git commit -m "Document close-window backend shutdown"
+            git push origin HEAD:stop-backend-on-window-close
           }
