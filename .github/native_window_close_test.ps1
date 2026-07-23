@@ -20,21 +20,29 @@ foreach ($function in $functions) {
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-using System.Threading;
-
 public static class ParrotyNativeWindow {
   [DllImport("user32.dll")]
   public static extern bool IsWindow(IntPtr hWnd);
 }
+"@
 
-public static class NativeWindowHarness {
+$work = Join-Path $env:RUNNER_TEMP "parroty-native-host"
+New-Item -ItemType Directory -Force -Path $work | Out-Null
+$hostExe = Join-Path $work "NativeWindowHost.exe"
+$handleFile = Join-Path $work "handle.txt"
+
+$source = @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+
+public static class Program {
   private const uint WM_CLOSE = 0x0010;
   private const uint WM_DESTROY = 0x0002;
   private static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
   private delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
   private static readonly WndProc WindowProcedure = HandleMessage;
-  private static readonly ManualResetEventSlim Ready = new ManualResetEventSlim(false);
-  private static IntPtr windowHandle = IntPtr.Zero;
 
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
   private struct WNDCLASS {
@@ -51,14 +59,20 @@ public static class NativeWindowHarness {
   }
 
   [StructLayout(LayoutKind.Sequential)]
+  private struct POINT {
+    public int x;
+    public int y;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
   private struct MSG {
     public IntPtr hwnd;
     public uint message;
     public UIntPtr wParam;
     public IntPtr lParam;
     public uint time;
-    public int ptX;
-    public int ptY;
+    public POINT pt;
+    public uint lPrivate;
   }
 
   [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
@@ -94,48 +108,41 @@ public static class NativeWindowHarness {
   [DllImport("user32.dll")]
   private static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-  public static IntPtr Start() {
-    Ready.Reset();
-    Thread thread = new Thread(() => {
-      string className = "ParrotyNativeTest_" + Guid.NewGuid().ToString("N");
-      WNDCLASS windowClass = new WNDCLASS {
-        lpfnWndProc = WindowProcedure,
-        hInstance = GetModuleHandle(null),
-        lpszClassName = className
-      };
-      ushort atom = RegisterClass(ref windowClass);
-      if (atom == 0) {
-        Ready.Set();
-        return;
-      }
+  public static int Main(string[] args) {
+    if (args.Length != 1) return 2;
 
-      windowHandle = CreateWindowEx(
-        0, className, "Parroty regression window", 0,
-        0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero,
-        windowClass.hInstance, IntPtr.Zero);
-      Ready.Set();
+    string className = "ParrotyNativeHost_" + Guid.NewGuid().ToString("N");
+    WNDCLASS windowClass = new WNDCLASS {
+      lpfnWndProc = WindowProcedure,
+      hInstance = GetModuleHandle(null),
+      lpszClassName = className
+    };
+    if (RegisterClass(ref windowClass) == 0) return 3;
 
-      MSG message;
-      while (GetMessage(out message, IntPtr.Zero, 0, 0) > 0) {
-        TranslateMessage(ref message);
-        DispatchMessage(ref message);
-      }
+    IntPtr windowHandle = CreateWindowEx(
+      0, className, "Parroty regression window", 0,
+      0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero,
+      windowClass.hInstance, IntPtr.Zero);
+    if (windowHandle == IntPtr.Zero) return 4;
 
-      Thread.Sleep(4000);
-    });
-    thread.IsBackground = true;
-    thread.Start();
-    Ready.Wait(5000);
-    return windowHandle;
-  }
+    File.WriteAllText(args[0], windowHandle.ToInt64().ToString());
 
-  public static void CloseAfter(IntPtr hWnd, int milliseconds) {
     Thread closer = new Thread(() => {
-      Thread.Sleep(milliseconds);
-      PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+      Thread.Sleep(1000);
+      PostMessage(windowHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
     });
     closer.IsBackground = true;
     closer.Start();
+
+    MSG message;
+    while (GetMessage(out message, IntPtr.Zero, 0, 0) > 0) {
+      TranslateMessage(ref message);
+      DispatchMessage(ref message);
+    }
+
+    // The native window is gone, but the host process deliberately remains alive.
+    Thread.Sleep(4000);
+    return 0;
   }
 
   private static IntPtr HandleMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam) {
@@ -152,30 +159,42 @@ public static class NativeWindowHarness {
 }
 "@
 
-Write-Host "Creating native message window..."
-$handle = [NativeWindowHarness]::Start()
-Write-Host "Handle: $([int64]$handle)"
-if ($handle -eq [IntPtr]::Zero) { throw "Native test window was not created" }
-if (-not [ParrotyNativeWindow]::IsWindow($handle)) {
-  throw "Native test handle is not a live window"
-}
+Write-Host "Compiling native host..."
+Add-Type -TypeDefinition $source -Language CSharp -OutputAssembly $hostExe -OutputType ConsoleApplication
 
-[NativeWindowHarness]::CloseAfter($handle, 1000)
-$host = [System.Diagnostics.Process]::GetCurrentProcess()
-$watch = [System.Diagnostics.Stopwatch]::StartNew()
-Write-Host "Waiting for native window destruction while host PID $($host.Id) stays alive..."
-Wait-ParrotyWindowClose -WindowHandle $handle -WindowProcess $host
-$watch.Stop()
-Write-Host "Watcher returned after $($watch.Elapsed.TotalSeconds) seconds"
+Write-Host "Starting native host..."
+$host = Start-Process -FilePath $hostExe -ArgumentList $handleFile -PassThru -WindowStyle Hidden
+try {
+  for ($i = 0; $i -lt 40 -and -not (Test-Path $handleFile); $i++) {
+    Start-Sleep -Milliseconds 250
+  }
+  if (-not (Test-Path $handleFile)) {
+    throw "Native host did not publish a window handle. Exit code: $($host.ExitCode)"
+  }
 
-if ($watch.Elapsed.TotalSeconds -lt 0.5 -or $watch.Elapsed.TotalSeconds -gt 8) {
-  throw "Window watcher returned at an unexpected time: $($watch.Elapsed.TotalSeconds)s"
-}
-if (-not (Get-Process -Id $host.Id -ErrorAction SilentlyContinue)) {
-  throw "Host process exited; test did not reproduce Chromium staying alive"
-}
-if ([ParrotyNativeWindow]::IsWindow($handle)) {
-  throw "Window watcher returned while the native window still existed"
-}
+  $handle = [IntPtr][int64](Get-Content $handleFile -Raw)
+  Write-Host "Native handle: $([int64]$handle), host PID: $($host.Id)"
+  if (-not [ParrotyNativeWindow]::IsWindow($handle)) {
+    throw "Native test handle is not a live window"
+  }
 
-Write-Host "Native window close detection passed."
+  $watch = [System.Diagnostics.Stopwatch]::StartNew()
+  Wait-ParrotyWindowClose -WindowHandle $handle -WindowProcess $host
+  $watch.Stop()
+  Write-Host "Watcher returned after $($watch.Elapsed.TotalSeconds) seconds"
+
+  if ($watch.Elapsed.TotalSeconds -lt 0.5 -or $watch.Elapsed.TotalSeconds -gt 8) {
+    throw "Window watcher returned at an unexpected time: $($watch.Elapsed.TotalSeconds)s"
+  }
+  if (-not (Get-Process -Id $host.Id -ErrorAction SilentlyContinue)) {
+    throw "Host process exited; test did not reproduce Chromium staying alive"
+  }
+  if ([ParrotyNativeWindow]::IsWindow($handle)) {
+    throw "Window watcher returned while the native window still existed"
+  }
+
+  Write-Host "Native window close detection passed while the host process remained alive."
+}
+finally {
+  Stop-Process -Id $host.Id -Force -ErrorAction SilentlyContinue
+}
