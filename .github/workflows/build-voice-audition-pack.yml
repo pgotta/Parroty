@@ -18,15 +18,15 @@ jobs:
           python-version: "3.12"
       - name: Install builder dependency
         run: python -m pip install --quiet "huggingface_hub>=0.34,<2"
-      - name: Compile builder
+      - name: Compile builder and local generator
         id: compile
         continue-on-error: true
-        run: python -m py_compile tools/build_voice_audition_pack.py > build.log 2>&1
+        run: python -m py_compile tools/build_voice_audition_pack_v2.py tools/voice_audition_generate_previews.py > build.log 2>&1
       - name: Build audition pack
         id: build
         if: steps.compile.outcome == 'success'
         continue-on-error: true
-        run: python tools/build_voice_audition_pack.py >> build.log 2>&1
+        run: python tools/build_voice_audition_pack_v2.py >> build.log 2>&1
       - name: Verify ZIP
         id: verify
         if: steps.build.outcome == 'success'
@@ -41,13 +41,22 @@ jobs:
               bad = z.testzip()
               assert bad is None, bad
               names = set(z.namelist())
-              assert 'Generate Voice Reviews.bat' in names
-              assert 'voice_review/generate_previews.py' in names
-              assert 'voice_review/review.html' in names
+              required = {
+                  'Generate Voice Reviews.bat',
+                  'Open Voice Review.bat',
+                  'README-FIRST.txt',
+                  'LICENSE-ATTRIBUTION.txt',
+                  'voice_review/generate_previews.py',
+                  'voice_review/review.html',
+                  'voice_review/candidates.json',
+              }
+              assert required.issubset(names), sorted(required - names)
               refs = sorted(n for n in names if n.startswith('voice_review/references/') and n.endswith('.wav'))
               assert len(refs) == 8, refs
+              assert all(z.getinfo(name).file_size > 100_000 for name in refs)
               candidates = json.loads(z.read('voice_review/candidates.json'))
               assert len(candidates) == 8
+              compile(z.read('voice_review/generate_previews.py'), 'generate_previews.py', 'exec')
           print('Verified', p, p.stat().st_size, 'bytes')
           PY
       - name: Upload diagnostics
