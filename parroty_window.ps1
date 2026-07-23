@@ -60,12 +60,54 @@ function Stop-ParrotyBackend {
 
   foreach ($backendProcessId in $ProcessIds) {
     if ($backendProcessId -le 0 -or $backendProcessId -eq $PID) { continue }
+
+    # Stop-Process kills only the Flask parent on Windows and can leave active
+    # app.narrate_worker children orphaned. taskkill /T terminates the complete
+    # Parroty process tree while the parent relationship still exists.
     try {
-      Get-Process -Id $backendProcessId -ErrorAction Stop | Out-Null
-      Stop-Process -Id $backendProcessId -Force -ErrorAction Stop
-      try { Wait-Process -Id $backendProcessId -Timeout 5 -ErrorAction SilentlyContinue } catch {}
+      & taskkill.exe /PID $backendProcessId /T /F *> $null
+    } catch {}
+
+    try {
+      Wait-Process -Id $backendProcessId -Timeout 5 -ErrorAction SilentlyContinue
     } catch {}
   }
+}
+
+function Set-ParrotyWindowIcon {
+  param(
+    [IntPtr]$WindowHandle,
+    [string]$IconPath
+  )
+
+  if ($WindowHandle -eq [IntPtr]::Zero) { return }
+  if (-not (Test-Path -LiteralPath $IconPath)) { return }
+
+  try {
+    $IMAGE_ICON = 1
+    $LR_LOADFROMFILE = 0x10
+    $WM_SETICON = 0x0080
+    $ICON_SMALL = 0
+    $ICON_BIG = 1
+
+    $smallIcon = [ParrotyNativeWindow]::LoadImage(
+      [IntPtr]::Zero, $IconPath, $IMAGE_ICON, 16, 16, $LR_LOADFROMFILE
+    )
+    $largeIcon = [ParrotyNativeWindow]::LoadImage(
+      [IntPtr]::Zero, $IconPath, $IMAGE_ICON, 48, 48, $LR_LOADFROMFILE
+    )
+
+    if ($smallIcon -ne [IntPtr]::Zero) {
+      [ParrotyNativeWindow]::SendMessage(
+        $WindowHandle, $WM_SETICON, [IntPtr]$ICON_SMALL, $smallIcon
+      ) | Out-Null
+    }
+    if ($largeIcon -ne [IntPtr]::Zero) {
+      [ParrotyNativeWindow]::SendMessage(
+        $WindowHandle, $WM_SETICON, [IntPtr]$ICON_BIG, $largeIcon
+      ) | Out-Null
+    }
+  } catch {}
 }
 
 function Maximize-ParrotyWindow {
@@ -88,6 +130,24 @@ public static class ParrotyNativeWindow {
 
   [DllImport("user32.dll")]
   public static extern bool IsWindow(IntPtr hWnd);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  public static extern IntPtr LoadImage(
+    IntPtr hInst,
+    string name,
+    uint type,
+    int cx,
+    int cy,
+    uint loadFlags
+  );
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern IntPtr SendMessage(
+    IntPtr hWnd,
+    uint message,
+    IntPtr wParam,
+    IntPtr lParam
+  );
 }
 "@
   } catch {}
@@ -130,6 +190,7 @@ public static class ParrotyNativeWindow {
       for ($pass = 0; $pass -lt 5; $pass++) {
         [ParrotyNativeWindow]::ShowWindowAsync($chosen.MainWindowHandle, 3) | Out-Null
         [ParrotyNativeWindow]::SetForegroundWindow($chosen.MainWindowHandle) | Out-Null
+        Set-ParrotyWindowIcon -WindowHandle $chosen.MainWindowHandle -IconPath (Join-Path $Root "parroty.ico")
         Start-Sleep -Milliseconds 300
         try { $chosen.Refresh() } catch {}
       }

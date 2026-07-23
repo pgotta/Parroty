@@ -52,6 +52,8 @@ timestamps. Everything runs on your own machine and opens in Chrome.
   off — finishing 100+ chapter books on a 16 GB machine without crashes.
 - **Runs entirely on your own machine** — your files and (for the local engine)
   your audio never leave your computer.
+- **Windows desktop-app behavior:** opens maximized with the Parroty bird icon in
+  the window and taskbar; closing X stops Flask and active narration workers.
 
 ## Screenshots
 
@@ -417,12 +419,13 @@ installed). Press **Ctrl+C** to stop.
 **Optional Windows launchers:** create the local `.bat` files from
 `Quick Start Readme.txt`, or use a packaged Windows ZIP that already includes
 them. `run.bat` starts the backend windowlessly through `pythonw.exe`, opens
-Parroty in a dedicated maximized Chrome/Edge app window, and silently creates or
-refreshes the desktop shortcut. Closing that Parroty app window with **X** now
-automatically stops the hidden Flask backend, the same result as running
-`stop.bat`. Output goes to `parroty.log`; `stop.bat` remains available as a
-fallback if the window is already gone or the backend needs to be forced closed.
-These `.bat` files are deliberately ignored by Git.
+Parroty in a dedicated maximized Chrome/Edge app window, applies the Parroty bird
+icon to the native window and taskbar button, and silently creates or refreshes
+the desktop shortcut. Closing that app window with **X** terminates the complete
+Parroty process tree—including an active `app.narrate_worker`—rather than only
+closing the port-5000 Flask parent. Output goes to `parroty.log`; `stop.bat` uses
+the same full-tree behavior and can also find orphaned Parroty workers if the
+listener is already gone. These `.bat` files are deliberately ignored by Git.
 
 Starting again later needs no reinstall — setup is one-time. Open a terminal,
 `cd` into the Parroty folder, activate the venv, and run the server:
