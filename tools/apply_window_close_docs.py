@@ -48,6 +48,12 @@ def update_quick_start() -> None:
         "5. Use run_debug.bat only for troubleshooting.",
     )
 
+    # Keep this Windows copy/paste guide in its original CRLF format so changing
+    # two instructions does not appear as a whole-file rewrite in Git.
+    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    with path.open("w", encoding="utf-8", newline="") as file:
+        file.write(normalized.replace("\n", "\r\n"))
+
 
 def update_build() -> None:
     replace_once(
