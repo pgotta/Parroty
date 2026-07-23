@@ -61,11 +61,9 @@ def get_engine(name: str, **config) -> TTSEngine:
 
 # Static metadata for the UI (no heavy imports needed to show options).
 #
-# Chatterbox is a cloning-only model: it always narrates from a reference clip.
-# The "built-in" voices below are seeded once from a cloud voice (OpenAI or
-# ElevenLabs) the first time they're used, then cached locally and reused for
-# free on every subsequent run. This gives a no-fuss free path to an audiobook
-# while still allowing a fully custom cloned voice if the user uploads a sample.
+# Chatterbox is a cloning model. Its built-in voices use bundled, anonymous
+# CC BY 4.0 reference clips under app/assets/voices/, so they work fully
+# locally and offline. Custom uploaded samples remain supported.
 ENGINE_CATALOG = {
     "openai": {
         "label": "OpenAI (cloud, paid)",
@@ -94,8 +92,38 @@ ENGINE_CATALOG = {
         # Built-in voices use bundled reference clips (app/assets/voices/),
         # so they work fully offline with no API key.
         "builtin_voices": {
-            "female": {"label": "Female", "file": "builtin_female.wav"},
-            "male":   {"label": "Male",   "file": "builtin_male.wav"},
+            "warm_female": {
+                "label": "Warm female",
+                "file": "builtin_warm_female.wav",
+            },
+            "mature_female": {
+                "label": "Mature female",
+                "file": "builtin_mature_female.wav",
+            },
+            "neutral_female": {
+                "label": "Neutral female",
+                "file": "builtin_neutral_female.wav",
+            },
+            "british_female": {
+                "label": "British female",
+                "file": "builtin_british_female.wav",
+            },
+            "warm_male": {
+                "label": "Warm male",
+                "file": "builtin_warm_male.wav",
+            },
+            "mature_deep_male": {
+                "label": "Mature/deep male",
+                "file": "builtin_mature_deep_male.wav",
+            },
+            "neutral_male": {
+                "label": "Neutral male",
+                "file": "builtin_neutral_male.wav",
+            },
+            "british_male": {
+                "label": "British male",
+                "file": "builtin_british_male.wav",
+            },
         },
         # Model variant: speed vs quality.
         "models": {
