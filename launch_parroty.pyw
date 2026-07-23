@@ -73,11 +73,72 @@ def log_failure() -> None:
         pass
 
 
+def _maximize_parroty_window(timeout: float = 12.0) -> None:
+    """Explicitly maximize the Chrome/Edge app window on Windows.
+
+    Chromium can ignore ``--start-maximized`` for app-mode windows, especially
+    when an existing browser process handles the launch request. This waits for
+    the Parroty window title to appear and then asks Windows to maximize it.
+    """
+    if os.name != "nt" or os.environ.get("PARROTY_TEST_MODE") == "1":
+        return
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        enum_proc_type = ctypes.WINFUNCTYPE(
+            wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
+        )
+        sw_maximize = 3
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            matched = []
+
+            @enum_proc_type
+            def enum_proc(hwnd, _lparam):
+                try:
+                    if not user32.IsWindowVisible(hwnd):
+                        return True
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length <= 0:
+                        return True
+                    buffer = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buffer, length + 1)
+                    title = buffer.value.lower()
+                    if "parroty" in title:
+                        matched.append(hwnd)
+                except Exception:
+                    pass
+                return True
+
+            user32.EnumWindows(enum_proc, 0)
+            if matched:
+                for hwnd in matched:
+                    user32.ShowWindow(hwnd, sw_maximize)
+                    try:
+                        user32.BringWindowToTop(hwnd)
+                        user32.SetForegroundWindow(hwnd)
+                    except Exception:
+                        pass
+                return
+            time.sleep(0.2)
+    except Exception:
+        pass
+
+
+def _open_maximized(open_window) -> None:
+    open_window(URL)
+    _maximize_parroty_window()
+
+
 def _open_when_ready(open_window) -> None:
     if os.environ.get("PARROTY_NO_BROWSER") == "1":
         return
     if wait_until_healthy(30.0):
-        open_window(URL)
+        _open_maximized(open_window)
     else:
         try:
             with LOG_PATH.open("a", encoding="utf-8", errors="replace") as file:
@@ -95,7 +156,7 @@ try:
 
     if port_is_open():
         if wait_until_healthy(3.0):
-            server._open_chrome(URL)
+            _open_maximized(server._open_chrome)
         else:
             raise RuntimeError(
                 "Port 5000 is occupied, but Parroty readiness check failed. "
