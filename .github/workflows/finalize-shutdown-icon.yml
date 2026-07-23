@@ -22,13 +22,11 @@ jobs:
           python-version: "3.12"
 
       - name: Restore Parroty icon payload
-        shell: pwsh
-        run: |
-          $payload = (Get-Content tools/parroty_icon.b64 -Raw).Trim()
-          [IO.File]::WriteAllBytes(
-            (Join-Path $PWD "parroty.ico"),
-            [Convert]::FromBase64String($payload)
-          )
+        run: >-
+          python -c "import base64,pathlib;
+          data=base64.b64decode(pathlib.Path('tools/parroty_icon.b64').read_text(encoding='utf-8').strip(),validate=True);
+          pathlib.Path('parroty.ico').write_bytes(data);
+          print('Restored parroty.ico:',len(data),'bytes')"
 
       - name: Apply confirmed local changes
         id: apply
