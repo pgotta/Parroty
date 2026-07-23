@@ -18,11 +18,21 @@ jobs:
           python-version: "3.12"
       - name: Install builder dependency
         run: python -m pip install --quiet "huggingface_hub>=0.34,<2"
+      - name: Compile builder
+        id: compile
+        continue-on-error: true
+        run: python -m py_compile tools/build_voice_audition_pack.py > build.log 2>&1
       - name: Build audition pack
-        run: python tools/build_voice_audition_pack.py
+        id: build
+        if: steps.compile.outcome == 'success'
+        continue-on-error: true
+        run: python tools/build_voice_audition_pack.py >> build.log 2>&1
       - name: Verify ZIP
+        id: verify
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
         run: |
-          python - <<'PY'
+          python - <<'PY' >> build.log 2>&1
           import json, zipfile
           from pathlib import Path
           p = Path('dist/Parroty-Voice-Audition-Pack.zip')
@@ -40,8 +50,20 @@ jobs:
               assert len(candidates) == 8
           print('Verified', p, p.stat().st_size, 'bytes')
           PY
-      - uses: actions/upload-artifact@v4
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-pack-build-diagnostics
+          path: build.log
+          if-no-files-found: warn
+      - name: Upload audition pack
+        if: steps.verify.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: Parroty-Voice-Audition-Pack
           path: dist/Parroty-Voice-Audition-Pack.zip
           if-no-files-found: error
+      - name: Enforce result
+        if: steps.compile.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success'
+        run: exit 1
