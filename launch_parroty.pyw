@@ -1,15 +1,17 @@
 """Windowless Parroty launcher used by the desktop shortcut.
 
-Import the Flask server as ``app.server`` instead of executing it as
-``__main__``. Flask uses the import name to locate ``app/templates`` and
-``app/static``; executing the module through ``runpy`` made Flask search from
-the project root and caused ``TemplateNotFound: index.html`` even when the file
-was present.
+The Flask server is imported as ``app.server`` so templates/static assets stay
+rooted under ``app/``. On Windows the browser window is launched by
+``parroty_window.ps1`` using the same dedicated-profile/maximize approach as
+Stemmy, so an existing Chrome session cannot restore Parroty to an old windowed
+size.
 """
 from __future__ import annotations
 
 import os
+import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -21,6 +23,7 @@ ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:5000"
 HEALTH_URL = URL + "/engines"
 LOG_PATH = ROOT / "parroty.log"
+WINDOW_SCRIPT = ROOT / "parroty_window.ps1"
 
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
@@ -73,72 +76,71 @@ def log_failure() -> None:
         pass
 
 
-def _maximize_parroty_window(timeout: float = 12.0) -> None:
-    """Explicitly maximize the Chrome/Edge app window on Windows.
-
-    Chromium can ignore ``--start-maximized`` for app-mode windows, especially
-    when an existing browser process handles the launch request. This waits for
-    the Parroty window title to appear and then asks Windows to maximize it.
-    """
-    if os.name != "nt" or os.environ.get("PARROTY_TEST_MODE") == "1":
-        return
-
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        user32 = ctypes.windll.user32
-        enum_proc_type = ctypes.WINFUNCTYPE(
-            wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
-        )
-        sw_maximize = 3
-
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            matched = []
-
-            @enum_proc_type
-            def enum_proc(hwnd, _lparam):
-                try:
-                    if not user32.IsWindowVisible(hwnd):
-                        return True
-                    length = user32.GetWindowTextLengthW(hwnd)
-                    if length <= 0:
-                        return True
-                    buffer = ctypes.create_unicode_buffer(length + 1)
-                    user32.GetWindowTextW(hwnd, buffer, length + 1)
-                    title = buffer.value.lower()
-                    if "parroty" in title:
-                        matched.append(hwnd)
-                except Exception:
-                    pass
-                return True
-
-            user32.EnumWindows(enum_proc, 0)
-            if matched:
-                for hwnd in matched:
-                    user32.ShowWindow(hwnd, sw_maximize)
-                    try:
-                        user32.BringWindowToTop(hwnd)
-                        user32.SetForegroundWindow(hwnd)
-                    except Exception:
-                        pass
-                return
-            time.sleep(0.2)
-    except Exception:
-        pass
+def _find_powershell() -> str | None:
+    if os.name != "nt":
+        return None
+    candidates = [
+        Path(os.environ.get("SystemRoot", r"C:\Windows"))
+        / "System32"
+        / "WindowsPowerShell"
+        / "v1.0"
+        / "powershell.exe",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "PowerShell"
+        / "7"
+        / "pwsh.exe",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which("powershell.exe") or shutil.which("pwsh.exe")
 
 
-def _open_maximized(open_window) -> None:
-    open_window(URL)
-    _maximize_parroty_window()
-
-
-def _open_when_ready(open_window) -> None:
+def _launch_app_window(fallback_open_window) -> None:
+    """Open Parroty in a dedicated, explicitly maximized app window."""
     if os.environ.get("PARROTY_NO_BROWSER") == "1":
         return
+
+    powershell = _find_powershell()
+    if powershell and WINDOW_SCRIPT.is_file():
+        command = [
+            powershell,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(WINDOW_SCRIPT),
+            "-Url",
+            URL,
+            "-Root",
+            str(ROOT),
+        ]
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            subprocess.Popen(
+                command,
+                cwd=str(ROOT),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+            return
+        except Exception:
+            # Retain the existing browser fallback if PowerShell is unavailable
+            # or blocked by a local policy.
+            pass
+
+    fallback_open_window(URL)
+
+
+def _open_when_ready(fallback_open_window) -> None:
     if wait_until_healthy(30.0):
-        _open_maximized(open_window)
+        _launch_app_window(fallback_open_window)
     else:
         try:
             with LOG_PATH.open("a", encoding="utf-8", errors="replace") as file:
@@ -156,7 +158,7 @@ try:
 
     if port_is_open():
         if wait_until_healthy(3.0):
-            _open_maximized(server._open_chrome)
+            _launch_app_window(server._open_chrome)
         else:
             raise RuntimeError(
                 "Port 5000 is occupied, but Parroty readiness check failed. "
