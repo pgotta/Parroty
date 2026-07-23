@@ -14,6 +14,9 @@ No version number is assigned to this update.
 - Added a dedicated maximized Chrome/Edge app window using its own browser profile.
 - Closing the dedicated Parroty app window now automatically stops the hidden
   Flask backend, matching `stop.bat` behavior without affecting normal browser windows.
+- Corrected that shutdown detection to monitor the exact native Parroty window
+  handle rather than waiting for the Chromium process, which may remain alive
+  after its app window is closed.
 - Added desktop-shortcut creation using the Parroty icon.
 - Corrected hidden-launch template/static resolution.
 - Kept narration workers GPU-enabled when the app window is hidden or inactive.
