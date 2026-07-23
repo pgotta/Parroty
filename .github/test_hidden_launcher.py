@@ -63,8 +63,8 @@ def verified_run(self: flask.Flask, *args, **kwargs):
     assert Path(self.root_path).resolve() == (ROOT / "app").resolve(), self.root_path
 
     with self.test_client() as client:
-        health = client.get("/api/health")
-        assert health.status_code == 200, health.get_data(as_text=True)
+        readiness = client.get("/engines")
+        assert readiness.status_code == 200, readiness.get_data(as_text=True)
 
         home = client.get("/")
         assert home.status_code == 200, home.get_data(as_text=True)
@@ -73,7 +73,7 @@ def verified_run(self: flask.Flask, *args, **kwargs):
         css = client.get("/static/style.css")
         assert css.status_code == 200
 
-    print("Hidden launcher test passed: health=200, homepage=200, static=200")
+    print("Hidden launcher test passed: readiness=200, homepage=200, static=200")
 
 
 flask.Flask.run = verified_run
