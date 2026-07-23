@@ -85,6 +85,9 @@ public static class ParrotyNativeWindow {
 
   [DllImport("user32.dll")]
   public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+  [DllImport("user32.dll")]
+  public static extern bool IsWindow(IntPtr hWnd);
 }
 "@
   } catch {}
@@ -137,6 +140,41 @@ public static class ParrotyNativeWindow {
   return $InitialProcess
 }
 
+function Wait-ParrotyWindowClose {
+  param(
+    [IntPtr]$WindowHandle,
+    [System.Diagnostics.Process]$WindowProcess,
+    [scriptblock]$WindowExists = $null,
+    [int]$PollMilliseconds = 250
+  )
+
+  # Chrome and Edge may keep their process alive after an app-mode window is
+  # closed. Watch the exact native window handle instead of waiting for the
+  # Chromium process to exit.
+  if ($WindowHandle -ne [IntPtr]::Zero) {
+    if (-not $WindowExists) {
+      $WindowExists = {
+        param([IntPtr]$Handle)
+        [ParrotyNativeWindow]::IsWindow($Handle)
+      }
+    }
+
+    while ($true) {
+      $windowStillExists = $false
+      try {
+        $windowStillExists = [bool](& $WindowExists $WindowHandle)
+      } catch {}
+
+      if (-not $windowStillExists) { break }
+      Start-Sleep -Milliseconds ([Math]::Max(10, $PollMilliseconds))
+    }
+    return
+  }
+
+  # Last-resort fallback if Chromium never exposed a usable native handle.
+  try { $WindowProcess.WaitForExit() } catch {}
+}
+
 $browser = Find-Browser
 if (-not $browser) {
   # A normal browser tab cannot be reliably monitored for its close event, so
@@ -174,10 +212,11 @@ if (-not $process) {
 }
 
 $windowProcess = Maximize-ParrotyWindow -InitialProcess $process -BrowserPath $browser -LaunchTime $launchTime
+$windowHandle = [IntPtr]$windowProcess.MainWindowHandle
 Set-Content -LiteralPath (Join-Path $Root ".parroty.browser.pid") -Value $windowProcess.Id
 
-# Wait for the dedicated Parroty app window—not the user's normal browser—to be
-# closed with X. Closing it is treated the same as running stop.bat.
-try { $windowProcess.WaitForExit() } catch {}
+# Watch the actual Parroty app window. Closing it with X is treated the same as
+# running stop.bat, even if Chromium keeps its process alive in the background.
+Wait-ParrotyWindowClose -WindowHandle $windowHandle -WindowProcess $windowProcess
 Remove-Item -LiteralPath (Join-Path $Root ".parroty.browser.pid") -Force -ErrorAction SilentlyContinue
 Stop-ParrotyBackend -ProcessIds $backendPids
