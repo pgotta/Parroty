@@ -19,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:5000"
+HEALTH_URL = URL + "/engines"
 LOG_PATH = ROOT / "parroty.log"
 
 os.chdir(ROOT)
@@ -48,7 +49,7 @@ def port_is_open() -> bool:
 
 def server_is_healthy() -> bool:
     try:
-        with urllib.request.urlopen(URL + "/api/health", timeout=0.8) as response:
+        with urllib.request.urlopen(HEALTH_URL, timeout=0.8) as response:
             return response.status == 200
     except Exception:
         return False
@@ -97,7 +98,7 @@ try:
             server._open_chrome(URL)
         else:
             raise RuntimeError(
-                "Port 5000 is occupied, but Parroty health check failed. "
+                "Port 5000 is occupied, but Parroty readiness check failed. "
                 "Run stop.bat and try again."
             )
     else:
