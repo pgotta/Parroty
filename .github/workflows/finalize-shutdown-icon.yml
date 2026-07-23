@@ -21,6 +21,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Restore Parroty icon payload
+        shell: pwsh
+        run: |
+          $payload = (Get-Content tools/parroty_icon.b64 -Raw).Trim()
+          [IO.File]::WriteAllBytes(
+            (Join-Path $PWD "parroty.ico"),
+            [Convert]::FromBase64String($payload)
+          )
+
       - name: Apply confirmed local changes
         id: apply
         continue-on-error: true
@@ -153,7 +162,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add parroty_window.ps1 app/templates/index.html app/static/parroty.ico README.md "Quick Start Readme.txt" BUILD.md RELEASE_NOTES.md
+          git add parroty.ico parroty_window.ps1 app/templates/index.html app/static/parroty.ico README.md "Quick Start Readme.txt" BUILD.md RELEASE_NOTES.md
           if (git diff --cached --quiet) {
             Write-Host "Final files already current."
           } else {
