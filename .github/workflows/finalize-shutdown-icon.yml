@@ -22,9 +22,21 @@ jobs:
           python-version: "3.12"
 
       - name: Apply confirmed local changes
-        run: python tools/finalize_shutdown_icon_docs.py
+        id: apply
+        continue-on-error: true
+        shell: pwsh
+        run: python tools/finalize_shutdown_icon_docs.py *> updater.log
+
+      - name: Upload updater diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finalization-updater-diagnostics
+          path: updater.log
+          if-no-files-found: warn
 
       - name: Parse PowerShell and Python
+        if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
           $tokens = $null
@@ -41,6 +53,7 @@ jobs:
           python -m py_compile launch_parroty.pyw app/server.py app/narrate_worker.py
 
       - name: Verify full process-tree shutdown
+        if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
           @'
@@ -101,6 +114,7 @@ jobs:
           }
 
       - name: Verify icon and documentation assets
+        if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
           if (-not (Test-Path app/static/parroty.ico)) { throw "Static Parroty icon missing" }
@@ -121,6 +135,7 @@ jobs:
           if (-not $quick.Contains('/T /F')) { throw "Quick Start stop.bat does not terminate process trees" }
 
       - name: Enforce repository policy
+        if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
           $trackedBat = @(git ls-files "*.bat")
@@ -133,6 +148,7 @@ jobs:
           }
 
       - name: Commit generated final files
+        if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
@@ -144,3 +160,7 @@ jobs:
             git commit -m "Finalize process-tree shutdown and window icon"
             git push origin HEAD:finalize-shutdown-and-window-icon
           }
+
+      - name: Enforce updater result
+        if: steps.apply.outcome != 'success'
+        run: exit 1
