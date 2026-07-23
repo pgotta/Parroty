@@ -9,7 +9,6 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 ## Table of Contents
 
 - [Highlights](#highlights)
-- [Known issues](#known-issues)
 - [Screenshots](#screenshots)
 - [What it does](#what-it-does)
 - [Voice engines](#voice-engines)
@@ -19,11 +18,12 @@ timestamps. Everything runs on your own machine and opens in Chrome.
 - [Running and stopping](#running-and-stopping)
 - [Updating to a new version](#updating-to-a-new-version)
 - [Run it overnight (narrate + bind in one pass)](#run-it-overnight-narrate--bind-in-one-pass)
-- [Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed)
+- [GPU setup and performance](#gpu-setup-and-performance)
 - [Memory use on 16 GB machines](#memory-use-on-16-gb-machines)
 - [How YouTube chapters work](#how-youtube-chapters-work)
 - [Playing from Google Drive (with chapters)](#playing-from-google-drive-with-chapters)
 - [Project layout](#project-layout)
+- [Building a Windows distribution](#building-a-windows-distribution)
 - [Troubleshooting](#troubleshooting)
 - [Notes](#notes)
 - [Tech stack](#tech-stack)
@@ -35,7 +35,8 @@ timestamps. Everything runs on your own machine and opens in Chrome.
   HTML — chapters auto-detected from the book's real structure, with reading
   order preserved.
 - **Three voice engines:** OpenAI and ElevenLabs (cloud, paid) and **Chatterbox**
-  (free, local, GPU-accelerated) which can clone a voice from a ~10-second sample.
+  (free, local, GPU-accelerated), with eight bundled audiobook voices plus custom
+  voice cloning from a ~10-second sample.
 - **One file per chapter,** then optionally combined into a single audiobook and
   an **MP4** (cover image + audio) for YouTube.
 - **YouTube chapter markers generated for you** — a ready-to-paste timestamp list
@@ -51,22 +52,6 @@ timestamps. Everything runs on your own machine and opens in Chrome.
   off — finishing 100+ chapter books on a 16 GB machine without crashes.
 - **Runs entirely on your own machine** — your files and (for the local engine)
   your audio never leave your computer.
-
-## Known issues
-
-**Windows laptop GPU throttling:** the bundled **`run.bat`** now launches
-Parroty through `pythonw.exe`, so no PowerShell or console window remains to lose
-focus. Parroty opens in its own Chrome/Edge app window, while both the hidden
-server and recycled narration workers opt out of Windows background power
-throttling (EcoQoS), run at high priority, and keep the system awake. Live CPU,
-GPU utilization, and VRAM appear in the bottom-left system monitor.
-
-On first launch, `run.bat` also creates a **Parroty desktop shortcut**. Later you
-can start Parroty directly from that shortcut. Use `stop.bat` to shut down the
-hidden server. If a particular laptop still applies OS-level throttling, run
-**`fix_gpu.bat` once as administrator**, then restart Parroty. Also keep the laptop
-plugged in and use the performance settings under
-[Keeping the GPU at full speed](#keeping-the-gpu-at-full-speed).
 
 ## Screenshots
 
@@ -125,12 +110,30 @@ per-chunk timing, so those chapters are skipped.
 |--------|------|---------|-------|
 | **OpenAI** | paid (cloud) | no | 6 built-in voices, easiest, very good quality |
 | **ElevenLabs** | paid (cloud) | yes | best naturalness, clones from a sample |
-| **Chatterbox** | free (local) | yes | clones from ~10s sample, GPU recommended |
+| **Chatterbox** | free (local) | yes | 8 bundled audiobook voices, custom cloning from ~10s sample, GPU recommended |
 
 Cloud engines need an API key, entered in the UI — it's sent only to that
 provider, never stored. You pay the provider directly on your own account.
 
 WARNING: Only clone voices you own or have explicit permission to use.
+
+### Bundled local voices
+
+Chatterbox includes eight reviewed offline reference voices:
+
+- Warm female
+- Mature female
+- Neutral female
+- British female
+- Warm male
+- Mature/deep male
+- Neutral male
+- British male
+
+These replace the older generic Female/Male references. They are anonymous VCTK
+corpus clips licensed under CC BY 4.0; attribution is kept in
+`app/assets/voices/ATTRIBUTION.md`. Uploading a custom reference sample still
+overrides the selected built-in voice for that project.
 
 ---
 
@@ -146,7 +149,7 @@ that exact setup — other configurations should work but haven't been exercised
 
 | Need | Detail |
 |------|--------|
-| OS | Windows 10/11 for the `.bat` launchers; macOS/Linux work from the command line |
+| OS | Windows 10/11 tested; macOS/Linux can run from the command line |
 | GPU | Only for the local **Chatterbox** engine: NVIDIA with CUDA (the **CUDA 12.8** build for RTX 50‑series). **8 GB VRAM is plenty** for TTS. CPU‑only works but is much slower; Apple Silicon (Metal) also accelerates Chatterbox. Cloud voices need no GPU. |
 | ffmpeg | Required — combines the per‑chapter audio and builds the MP4 |
 | Python | 3.10+ (3.12 recommended) |
@@ -187,11 +190,11 @@ python -m app.server
 Chrome opens automatically at `http://127.0.0.1:5000`. Press **Ctrl+C** to stop.
 
 > **Prefer to double-click instead of typing commands?** See
-> **`Quick Start Readme.txt`** in this folder. It walks you through creating a
-> few optional Windows launcher files — including an `install_all.bat` that
-> installs *everything* (Python, ffmpeg, the environment, all packages, and GPU
-> PyTorch) in one double-click, and a `run.bat` to start Parroty. They're
-> optional; the commands above do the same job.
+> **`Quick Start Readme.txt`**. It contains the current Windows BAT templates.
+> Batch files are intentionally excluded from Git and generated locally (or
+> injected into a downloadable Windows ZIP) so machine-specific wrappers never
+> become repository source files. The commands above remain the portable setup
+> path.
 
 > **First-run PowerShell note.** If the `.\venv\Scripts\Activate.ps1` line gives
 > *"running scripts is disabled on this system"*, run this **once** (per machine),
@@ -411,11 +414,12 @@ It starts a local server and **automatically opens Chrome** to
 `http://127.0.0.1:5000` (falling back to your default browser if Chrome isn't
 installed). Press **Ctrl+C** to stop.
 
-**Normal Windows launch:** double-click **`run.bat`**. It starts the backend
-windowlessly through `pythonw.exe`, opens Parroty in a dedicated Chrome/Edge app
-window, and silently creates or refreshes a desktop shortcut. Output goes to
-`parroty.log`; stop the hidden server with `stop.bat`. `run_hidden.bat` remains as
-a backwards-compatible alias and behaves the same way.
+**Optional Windows launchers:** create the local `.bat` files from
+`Quick Start Readme.txt`, or use a packaged Windows ZIP that already includes
+them. `run.bat` starts the backend windowlessly through `pythonw.exe`, opens
+Parroty in a dedicated maximized Chrome/Edge app window, and silently creates or
+refreshes the desktop shortcut. Output goes to `parroty.log`; use `stop.bat` to
+shut down the hidden server. These `.bat` files are deliberately ignored by Git.
 
 Starting again later needs no reinstall — setup is one-time. Open a terminal,
 `cd` into the Parroty folder, activate the venv, and run the server:
@@ -478,31 +482,27 @@ the list (shown by book title and date), and bind it without re-narrating.
 Cover images can be any common format — JPG, PNG, WebP, even AVIF — Parroty
 converts them automatically so ffmpeg can read them.
 
-## Keeping the GPU at full speed
+## GPU setup and performance
 
-If you've seen the GPU drop to ~10% the moment the Parroty console loses focus,
-and jump back to full speed when you click it: that's Windows applying *power
-throttling* (EcoQoS) to background processes. Parroty opts itself **and its
-narration workers** out of that throttling, raises its priority, and keeps the
-system awake.
+For local Chatterbox narration, select **CUDA / NVIDIA GPU** in Parroty and
+confirm that the bottom-left system monitor shows the NVIDIA GPU and rising VRAM
+while speech is being generated. GPU utilization naturally rises and falls: the
+model generates speech on the GPU, then Parroty performs CPU and disk work such
+as chunk assembly, MP3 writing, progress updates, resume-ledger writes, and
+memory cleanup. Average utilization can therefore be lower during a full book
+than during a short back-to-back voice audition.
 
-**Important:** as noted in [Known issues](#known-issues) above, this isn't
-always enough — on some machines (especially laptops) the GPU still slows when
-the window loses focus, so for now **keep the Parroty console window in the
-foreground while narrating**.
+For best laptop performance:
 
-On a **laptop** the GPU is throttled even harder by power policy, so for maximum
-speed also:
+- Plug in AC power.
+- Use **Windows Settings → System → Power → Best performance**.
+- In NVIDIA Control Panel, set `python.exe` and `pythonw.exe` to **Prefer maximum
+  performance** when available.
+- Keep enough free RAM and page-file headroom for the Standard model.
 
-- **Plug in AC power.** On battery, Windows and the GPU throttle aggressively no
-  matter what; this is the single biggest factor on a laptop.
-- **Windows Settings → System → Power → Power mode → "Best performance."**
-- **NVIDIA Control Panel → Manage 3D settings → Power management mode → "Prefer
-  maximum performance"** (set it globally, or just for `python.exe`). This stops
-  the GPU from down-clocking when it thinks it's idle.
-
-With AC power, those performance settings, and the Parroty window kept in the
-foreground, the GPU should stay pinned.
+The hidden launcher and narration workers already request high execution priority
+and opt out of Windows process power throttling. No visible PowerShell window is
+required during narration.
 
 ## Memory use on 16 GB machines
 
@@ -612,6 +612,23 @@ Parroty/
   uploads/   output/      (created automatically at runtime)
 ```
 
+## Building a Windows distribution
+
+Repository source and downloadable Windows packages are intentionally different:
+
+- Git tracks the application, Python/VBS/PowerShell launcher helpers, icon, voice
+  assets, documentation, and tests.
+- Git does **not** track `.bat` files. `.gitignore` blocks `*.bat` everywhere.
+- A Windows ZIP may include locally generated `.bat` convenience launchers at the
+  archive root. The current templates live in `Quick Start Readme.txt`.
+- Package the project files at the ZIP root; do not add an extra nested `Parroty`
+  directory.
+
+See [`BUILD.md`](BUILD.md) for the complete packaging checklist and validation
+commands.
+
+---
+
 ## Troubleshooting
 
 - **`python` not found** — try `python3` instead (and `pip3`).
@@ -657,7 +674,7 @@ Parroty/
 - **ML/GPU:** PyTorch with CUDA 12.8 (cu128) on NVIDIA
 - **Document parsing:** ebooklib (EPUB), pdfplumber (PDF), python-docx (Word), custom parsers (txt/Markdown/HTML/RTF)
 - **Audio:** pydub, ffmpeg, Pillow (+pillow-avif-plugin), stdlib `wave`
-- **System:** psutil (memory monitoring), ctypes (Windows API), batch-file launchers
+- **System:** psutil (memory monitoring), ctypes (Windows API), local Windows launcher helpers
 - **Architecture:** Local single-user web app on `127.0.0.1:5000`, state on disk under `output/`
 
 ## License

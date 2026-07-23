@@ -24,10 +24,11 @@ uploads/*
 *.pth
 *.safetensors
 
-# ---- Windows launcher scripts ----
-# Kept out of the public repo so it looks tidy and less alarming to visitors.
-# They still live in your own copy of the folder, so you can double-click to run.
+# ---- Windows batch wrappers ----
+# BAT files are generated locally or added only to Windows release ZIPs.
+# Never commit them to the source repository.
 *.bat
+**/*.bat
 
 # ---- OS / editor cruft ----
 .DS_Store
