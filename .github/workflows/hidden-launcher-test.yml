@@ -1,0 +1,24 @@
+name: Hidden launcher regression
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  hidden-launcher:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install "Flask==3.0.3"
+      - name: Compile launcher and server
+        run: python -m py_compile launch_parroty.pyw app/server.py
+      - name: Exercise exact hidden launcher path
+        run: python .github/test_hidden_launcher.py
