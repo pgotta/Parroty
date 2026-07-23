@@ -418,8 +418,11 @@ installed). Press **Ctrl+C** to stop.
 `Quick Start Readme.txt`, or use a packaged Windows ZIP that already includes
 them. `run.bat` starts the backend windowlessly through `pythonw.exe`, opens
 Parroty in a dedicated maximized Chrome/Edge app window, and silently creates or
-refreshes the desktop shortcut. Output goes to `parroty.log`; use `stop.bat` to
-shut down the hidden server. These `.bat` files are deliberately ignored by Git.
+refreshes the desktop shortcut. Closing that Parroty app window with **X** now
+automatically stops the hidden Flask backend, the same result as running
+`stop.bat`. Output goes to `parroty.log`; `stop.bat` remains available as a
+fallback if the window is already gone or the backend needs to be forced closed.
+These `.bat` files are deliberately ignored by Git.
 
 Starting again later needs no reinstall — setup is one-time. Open a terminal,
 `cd` into the Parroty folder, activate the venv, and run the server:

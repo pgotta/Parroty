@@ -12,6 +12,8 @@ No version number is assigned to this update.
 - Added the bottom-left CPU/GPU/VRAM system monitor.
 - Added hidden background launching with persistent `parroty.log` diagnostics.
 - Added a dedicated maximized Chrome/Edge app window using its own browser profile.
+- Closing the dedicated Parroty app window now automatically stops the hidden
+  Flask backend, matching `stop.bat` behavior without affecting normal browser windows.
 - Added desktop-shortcut creation using the Parroty icon.
 - Corrected hidden-launch template/static resolution.
 - Kept narration workers GPU-enabled when the app window is hidden or inactive.
