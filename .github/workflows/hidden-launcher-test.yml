@@ -17,8 +17,20 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependency
-        run: python -m pip install "Flask==3.0.3"
+        run: python -m pip install --quiet "Flask==3.0.3"
       - name: Compile launcher and server
         run: python -m py_compile launch_parroty.pyw app/server.py
       - name: Exercise exact hidden launcher path
+        id: launcher_test
+        continue-on-error: true
         run: python .github/test_hidden_launcher.py
+      - name: Upload launcher diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hidden-launcher-diagnostics
+          path: parroty.log
+          if-no-files-found: warn
+      - name: Enforce launcher test result
+        if: steps.launcher_test.outcome != 'success'
+        run: exit 1
