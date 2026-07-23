@@ -1,0 +1,70 @@
+name: README follow-up cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/readme-followup-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Correct remaining README wording
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('README.md')
+          s = p.read_text(encoding='utf-8')
+          old = '''- **"No module named 'torch'" or "No module named 'chatterbox'"** when you click
+            Narrate or Preview — these packages aren't installed in the venv that's running
+            Parroty. Activate your venv, run `pip install chatterbox-tts`, then
+            `pip install --force-reinstall torch torchaudio --index-url
+            https://download.pytorch.org/whl/cu128` (torch last so it isn't replaced by a
+            CPU build). Confirm with `python -c "import chatterbox, torch"` before retrying.
+          '''
+          new = '''- **"No module named 'torch'" or "No module named 'chatterbox'"** when you click
+            Narrate or Preview — these packages aren't installed in the venv that's running
+            Parroty. Install the CUDA build first with `venv\\Scripts\\python.exe -m pip
+            install --upgrade --force-reinstall torch==2.11.0 torchaudio==2.11.0
+            --index-url https://download.pytorch.org/whl/cu128`, then run
+            `venv\\Scripts\\python.exe tools\\install_chatterbox_compat.py`. Confirm with
+            `venv\\Scripts\\python.exe -c "import chatterbox, torch"` before retrying.
+          '''
+          if old not in s:
+              raise SystemExit('old dependency troubleshooting block not found')
+          s = s.replace(old, new, 1)
+          old2 = '''- **Built-in voices need no key** — the bundled male/female voices run fully
+            offline. If you want to preview or use them, just pick one and click Preview.
+          '''
+          new2 = '''- **Built-in voices need no key** — all eight bundled audiobook voices run
+            fully offline. Pick any voice and click Preview; a custom uploaded sample still
+            overrides the selected built-in voice for that project.
+          '''
+          if old2 not in s:
+              raise SystemExit('old built-in voice troubleshooting block not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          ! grep -qi 'bundled male/female' README.md
+          ! grep -q 'pip install chatterbox-tts.*, then' README.md
+      - name: Commit README correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Finish README voice and install documentation cleanup"
+          git push origin HEAD:main
