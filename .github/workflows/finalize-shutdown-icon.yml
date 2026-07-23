@@ -21,13 +21,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Restore Parroty icon payload
-        run: >-
-          python -c "import base64,pathlib;
-          data=base64.b64decode(pathlib.Path('tools/parroty_icon.b64').read_text(encoding='utf-8').strip(),validate=True);
-          pathlib.Path('parroty.ico').write_bytes(data);
-          print('Restored parroty.ico:',len(data),'bytes')"
-
       - name: Apply confirmed local changes
         id: apply
         continue-on-error: true
@@ -124,6 +117,7 @@ jobs:
         if: steps.apply.outcome == 'success'
         shell: pwsh
         run: |
+          if (-not (Test-Path parroty.ico)) { throw "Root Parroty icon missing" }
           if (-not (Test-Path app/static/parroty.ico)) { throw "Static Parroty icon missing" }
           $rootHash = (Get-FileHash parroty.ico -Algorithm SHA256).Hash
           $staticHash = (Get-FileHash app/static/parroty.ico -Algorithm SHA256).Hash
