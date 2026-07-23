@@ -33,51 +33,44 @@ def update_quick_start() -> None:
     path = ROOT / "Quick Start Readme.txt"
     replace_once(
         path,
-        "- stop.bat          Stop the hidden backend.",
-        "- stop.bat          Fallback force-stop for the hidden backend.",
+        "The eight bundled Chatterbox voices already live under app\\assets\\voices.\n"
+        "No API key or separate voice download is required.",
+        "The eight bundled Chatterbox voices already live under app\\assets\\voices.\n"
+        "No API key or separate voice download is required. Closing the dedicated\n"
+        "Parroty Chrome/Edge app window with X automatically stops the hidden backend.",
     )
     replace_once(
         path,
-        "dedicated maximized Chrome/Edge app window and keeps logs in parroty.log.",
-        "dedicated maximized Chrome/Edge app window and keeps logs in parroty.log.\n"
-        "Closing that Parroty window with X automatically stops the hidden backend.",
-    )
-    replace_once(
-        path,
-        "3. Use stop.bat when you need to stop the hidden backend.\n"
-        "4. Use run_debug.bat only when you need a visible traceback or log.",
+        "3. Use stop.bat to stop the hidden backend.\n"
+        "4. Use run_debug.bat only for troubleshooting.",
         "3. Close the Parroty app window with X to stop the hidden backend automatically.\n"
         "4. Use stop.bat only if the window is already gone or a forced stop is needed.\n"
-        "5. Use run_debug.bat only when you need a visible traceback or log.",
+        "5. Use run_debug.bat only for troubleshooting.",
     )
 
 
 def update_build() -> None:
-    path = ROOT / "BUILD.md"
     replace_once(
-        path,
-        "- Parroty opens in its own maximized app window.\n"
-        "- The desktop shortcut uses `parroty.ico`.",
-        "- Parroty opens in its own maximized app window.\n"
-        "- Closing the app window with X stops the Flask listener and releases port 5000.\n"
-        "- The desktop shortcut uses `parroty.ico`.",
-    )
-    replace_once(
-        path,
-        "- `stop.bat` shuts down the server on port 5000.",
-        "- `stop.bat` still shuts down the server on port 5000 as a fallback.",
+        ROOT / "BUILD.md",
+        "After installation, verify the monitor identifies CUDA/NVIDIA, the app opens in\n"
+        "a dedicated maximized window without a visible console, the desktop shortcut\n"
+        "uses `parroty.ico`, all eight voices appear, previews work, and `stop.bat` shuts\n"
+        "down port 5000.",
+        "After installation, verify the monitor identifies CUDA/NVIDIA, the app opens in\n"
+        "a dedicated maximized window without a visible console, and closing that app\n"
+        "window with X stops the Flask listener and releases port 5000. Also verify the\n"
+        "desktop shortcut uses `parroty.ico`, all eight voices appear, previews work, and\n"
+        "`stop.bat` still shuts down port 5000 as a fallback.",
     )
 
 
 def update_release_notes() -> None:
     replace_once(
         ROOT / "RELEASE_NOTES.md",
-        "- Added a dedicated maximized Chrome/Edge app window using its own browser\n"
-        "  profile, rather than reopening inside the user's normal browser session.\n",
-        "- Added a dedicated maximized Chrome/Edge app window using its own browser\n"
-        "  profile, rather than reopening inside the user's normal browser session.\n"
+        "- Added a dedicated maximized Chrome/Edge app window using its own browser profile.",
+        "- Added a dedicated maximized Chrome/Edge app window using its own browser profile.\n"
         "- Closing the dedicated Parroty app window now automatically stops the hidden\n"
-        "  Flask backend, matching `stop.bat` behavior without affecting normal browser windows.\n",
+        "  Flask backend, matching `stop.bat` behavior without affecting normal browser windows.",
     )
 
 
