@@ -28,6 +28,8 @@ os.environ["PARROTY_HIDDEN"] = "1"
 
 def _redirect_output_to_log() -> None:
     """Give pythonw/Flask a real output stream and keep a useful error log."""
+    if os.environ.get("PARROTY_TEST_MODE") == "1":
+        return
     try:
         log_file = LOG_PATH.open("a", buffering=1, encoding="utf-8", errors="replace")
         sys.stdout = log_file
@@ -115,3 +117,5 @@ try:
         )
 except Exception:
     log_failure()
+    if os.environ.get("PARROTY_TEST_MODE") == "1":
+        raise
