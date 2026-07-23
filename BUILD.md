@@ -58,9 +58,10 @@ py -3.12 -c "from app.tts import ENGINE_CATALOG; v=ENGINE_CATALOG['chatterbox'][
 ```
 
 After installation, verify the monitor identifies CUDA/NVIDIA, the app opens in
-a dedicated maximized window without a visible console, the desktop shortcut
-uses `parroty.ico`, all eight voices appear, previews work, and `stop.bat` shuts
-down port 5000.
+a dedicated maximized window without a visible console, and closing that app
+window with X stops the Flask listener and releases port 5000. Also verify the
+desktop shortcut uses `parroty.ico`, all eight voices appear, previews work, and
+`stop.bat` still shuts down port 5000 as a fallback.
 
 Before publishing, review `README.md`, `Quick Start Readme.txt`, `BUILD.md`,
 `RELEASE_NOTES.md`, and the voice attribution. No version bump or GitHub Release

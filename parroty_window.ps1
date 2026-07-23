@@ -1,6 +1,7 @@
 param(
   [string]$Url = "http://127.0.0.1:5000",
-  [string]$Root = $PSScriptRoot
+  [string]$Root = $PSScriptRoot,
+  [int]$Port = 5000
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -19,6 +20,52 @@ function Find-Browser {
     if ($candidate -and (Test-Path -LiteralPath $candidate)) { return $candidate }
   }
   return $null
+}
+
+function Get-ParrotyBackendPids {
+  param([int]$ListenerPort)
+
+  # Capture the exact process already listening for Parroty before opening the
+  # browser. When the app window closes we stop only these recorded PIDs, never
+  # an unrelated process that might later reuse the port.
+  $ids = [System.Collections.Generic.HashSet[int]]::new()
+
+  try {
+    Get-NetTCPConnection -LocalPort $ListenerPort -State Listen -ErrorAction Stop |
+      ForEach-Object {
+        if ($_.OwningProcess -gt 0) {
+          [void]$ids.Add([int]$_.OwningProcess)
+        }
+      }
+  } catch {}
+
+  # Fallback for systems where Get-NetTCPConnection is unavailable or restricted.
+  if ($ids.Count -eq 0) {
+    try {
+      $escapedPort = [regex]::Escape([string]$ListenerPort)
+      $pattern = "^\s*TCP\s+\S+:$escapedPort\s+\S+\s+LISTENING\s+(\d+)\s*$"
+      foreach ($line in (& netstat.exe -ano -p tcp 2>$null)) {
+        if ($line -match $pattern) {
+          [void]$ids.Add([int]$Matches[1])
+        }
+      }
+    } catch {}
+  }
+
+  return @($ids)
+}
+
+function Stop-ParrotyBackend {
+  param([int[]]$ProcessIds)
+
+  foreach ($backendProcessId in $ProcessIds) {
+    if ($backendProcessId -le 0 -or $backendProcessId -eq $PID) { continue }
+    try {
+      Get-Process -Id $backendProcessId -ErrorAction Stop | Out-Null
+      Stop-Process -Id $backendProcessId -Force -ErrorAction Stop
+      try { Wait-Process -Id $backendProcessId -Timeout 5 -ErrorAction SilentlyContinue } catch {}
+    } catch {}
+  }
 }
 
 function Maximize-ParrotyWindow {
@@ -92,9 +139,16 @@ public static class ParrotyNativeWindow {
 
 $browser = Find-Browser
 if (-not $browser) {
+  # A normal browser tab cannot be reliably monitored for its close event, so
+  # retain the browser fallback without automatic backend shutdown.
   Start-Process $Url
   exit 0
 }
+
+# Record the currently healthy Parroty listener before starting the app window.
+# This mirrors stop.bat when the window later closes, while avoiding broad
+# process-name matching or interference with normal browser windows.
+$backendPids = @(Get-ParrotyBackendPids -ListenerPort $Port)
 
 # A dedicated Chromium profile prevents an existing normal browser session from
 # restoring Parroty to a remembered windowed size. This is the same launcher
@@ -122,5 +176,8 @@ if (-not $process) {
 $windowProcess = Maximize-ParrotyWindow -InitialProcess $process -BrowserPath $browser -LaunchTime $launchTime
 Set-Content -LiteralPath (Join-Path $Root ".parroty.browser.pid") -Value $windowProcess.Id
 
+# Wait for the dedicated Parroty app window—not the user's normal browser—to be
+# closed with X. Closing it is treated the same as running stop.bat.
 try { $windowProcess.WaitForExit() } catch {}
 Remove-Item -LiteralPath (Join-Path $Root ".parroty.browser.pid") -Force -ErrorAction SilentlyContinue
+Stop-ParrotyBackend -ProcessIds $backendPids

@@ -16,7 +16,8 @@ launch_parroty.pyw, and the app folder:
 5. Save with the exact .bat filename shown.
 
 The eight bundled Chatterbox voices already live under app\assets\voices.
-No API key or separate voice download is required.
+No API key or separate voice download is required. Closing the dedicated
+Parroty Chrome/Edge app window with X automatically stops the hidden backend.
 
 ========================================================================
   FILE: install_all.bat
@@ -140,7 +141,8 @@ exit /b 0
 
 1. Run install_all.bat once.
 2. Start Parroty with run.bat or the desktop shortcut.
-3. Use stop.bat to stop the hidden backend.
-4. Use run_debug.bat only for troubleshooting.
+3. Close the Parroty app window with X to stop the hidden backend automatically.
+4. Use stop.bat only if the window is already gone or a forced stop is needed.
+5. Use run_debug.bat only for troubleshooting.
 
 Do not commit the generated BAT files. They are local/package conveniences.
