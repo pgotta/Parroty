@@ -143,21 +143,30 @@ public static class ParrotyNativeWindow {
 function Wait-ParrotyWindowClose {
   param(
     [IntPtr]$WindowHandle,
-    [System.Diagnostics.Process]$WindowProcess
+    [System.Diagnostics.Process]$WindowProcess,
+    [scriptblock]$WindowExists = $null,
+    [int]$PollMilliseconds = 250
   )
 
   # Chrome and Edge may keep their process alive after an app-mode window is
   # closed. Watch the exact native window handle instead of waiting for the
   # Chromium process to exit.
   if ($WindowHandle -ne [IntPtr]::Zero) {
+    if (-not $WindowExists) {
+      $WindowExists = {
+        param([IntPtr]$Handle)
+        [ParrotyNativeWindow]::IsWindow($Handle)
+      }
+    }
+
     while ($true) {
       $windowStillExists = $false
       try {
-        $windowStillExists = [ParrotyNativeWindow]::IsWindow($WindowHandle)
+        $windowStillExists = [bool](& $WindowExists $WindowHandle)
       } catch {}
 
       if (-not $windowStillExists) { break }
-      Start-Sleep -Milliseconds 250
+      Start-Sleep -Milliseconds ([Math]::Max(10, $PollMilliseconds))
     }
     return
   }
